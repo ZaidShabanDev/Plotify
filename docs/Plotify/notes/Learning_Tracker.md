@@ -11,7 +11,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | # | Task | Learn | Status |
 |---|---|---|---|
 | 1 | Scene setup | Scene/camera/renderer, render loop, resize, pixel ratio, OrbitControls + damping | ✅ |
-| 2 | Fibonacci sphere dots | `BufferGeometry`, position attribute, `THREE.Points`, even point distribution | 🟡 |
+| 2 | Fibonacci sphere dots | `BufferGeometry`, position attribute, `THREE.Points`, even point distribution | ✅ |
 | 3 | Custom dot shader | `ShaderMaterial`, vertex/fragment shaders, `gl_PointSize`, `gl_PointCoord`, per-dot attributes, size attenuation | ⬜ |
 | 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | ⬜ |
 | 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | ⬜ |
@@ -56,7 +56,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 
 ---
 
-## Task 2: Fibonacci Sphere Dots (current)
+## Task 2: Fibonacci Sphere Dots (done)
 
 **Your task:**
 1. Remove the red/green test meshes.
@@ -102,3 +102,4 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 Add a line per task: what you learned, what broke, what surprised you.
 
 - **Task 1:** Used Vite + TypeScript (not JS). `scene.background` is a property (use `=`), not a method. JS comma operator: `(a, b)` returns `b` with no error. Resize = `aspect` + `updateProjectionMatrix()` (matrix is cached) + `setSize`. Damping needs `controls.update()` every frame, or it lags and stops dead. `near`/`far` clip anything outside the frustum. UV sphere bunches at poles; icosahedron is even. Each geometry has its own args (`Icosahedron(radius, detail)`). Off-center objects stretch with high FOV.
+- **Task 2:** Built it in steps: 3 hand-placed dots → line of dots → Fibonacci sphere. `BufferGeometry` holds one flat `Float32Array`; the attribute's item size cuts it into vertices (vertex count = floor(length ÷ itemSize), leftovers ignored). Point `i` lives at `[i*3]`, `[i*3+1]`, `[i*3+2]`: index goes inside the brackets, value on the right. Same data draws differently by object type (`Points` = sprites, `Mesh` = triangles). Item size 2 → z filled with 0, flat scrambled plane. Material `size` (dot size) ≠ attribute item size: mixed them up once, `size: 2` made one solid block. Random y/θ is even on average but clumps and leaves gaps; Fibonacci (golden angle + equal-height slices) is even everywhere.
