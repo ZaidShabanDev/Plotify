@@ -1,0 +1,17 @@
+# Secrets (the .example file is committed)
+.env
+.env.*
+!.env.example
+
+# .NET (api/, Stage B)
+bin/
+obj/
+
+# SQLite (holds my library data)
+*.db
+*.db-shm
+*.db-wal
+
+# Python (audio/, Stage D)
+__pycache__/
+.venv/
