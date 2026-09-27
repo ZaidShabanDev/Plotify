@@ -12,7 +12,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 |---|---|---|---|
 | 1 | Scene setup | Scene/camera/renderer, render loop, resize, pixel ratio, OrbitControls + damping | ✅ |
 | 2 | Fibonacci sphere dots | `BufferGeometry`, position attribute, `THREE.Points`, even point distribution | ✅ |
-| 3 | Custom dot shader | `ShaderMaterial`, vertex/fragment shaders, `gl_PointSize`, `gl_PointCoord`, per-dot attributes, size attenuation | ⬜ |
+| 3 | Custom dot shader | `ShaderMaterial`, vertex/fragment shaders, `gl_PointSize`, `gl_PointCoord`, per-dot attributes, size attenuation | ✅ |
 | 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | ⬜ |
 | 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | ⬜ |
 | 6 | Mock data | Playlist JSON (genre, track count, edges) → size and color attributes | ⬜ |
@@ -53,6 +53,26 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | # | Task | Learn | Status |
 |---|---|---|---|
 | 23 | Save to Spotify | Create playlists from groups | ⬜ |
+
+---
+
+## Task 3: Custom Dot Shader (done)
+
+Branch: `feature/3-dot-shader` · Issue #3
+
+**Steps:**
+1. Swap `PointsMaterial` for a `ShaderMaterial` with minimal inline shaders (fixed pixel size, flat color).
+2. Round dots: `gl_PointCoord` + `discard`, then a soft edge with `smoothstep`.
+3. Size attenuation: scale `gl_PointSize` by view-space depth.
+4. Per-dot size: custom `aSize` attribute read in the vertex shader.
+
+**Things to try:**
+- Set `gl_Position` to `vec4(position, 1.0)` (skip the matrices). What happens to the camera?
+- Make the fragment color depend on `gl_PointCoord`.
+- Remove `discard`, and set alpha to 0 instead (without `transparent: true`).
+- Change the order of the matrices.
+
+**Done when:** round, soft-edged dots, bigger when close and smaller when far, each with its own size.
 
 ---
 
@@ -103,3 +123,4 @@ Add a line per task: what you learned, what broke, what surprised you.
 
 - **Task 1:** Used Vite + TypeScript (not JS). `scene.background` is a property (use `=`), not a method. JS comma operator: `(a, b)` returns `b` with no error. Resize = `aspect` + `updateProjectionMatrix()` (matrix is cached) + `setSize`. Damping needs `controls.update()` every frame, or it lags and stops dead. `near`/`far` clip anything outside the frustum. UV sphere bunches at poles; icosahedron is even. Each geometry has its own args (`Icosahedron(radius, detail)`). Off-center objects stretch with high FOV.
 - **Task 2:** Built it in steps: 3 hand-placed dots → line of dots → Fibonacci sphere. `BufferGeometry` holds one flat `Float32Array`; the attribute's item size cuts it into vertices (vertex count = floor(length ÷ itemSize), leftovers ignored). Point `i` lives at `[i*3]`, `[i*3+1]`, `[i*3+2]`: index goes inside the brackets, value on the right. Same data draws differently by object type (`Points` = sprites, `Mesh` = triangles). Item size 2 → z filled with 0, flat scrambled plane. Material `size` (dot size) ≠ attribute item size: mixed them up once, `size: 2` made one solid block. Random y/θ is even on average but clumps and leaves gaps; Fibonacci (golden angle + equal-height slices) is even everywhere.
+- **Task 3:** Vertex shader runs per dot (`gl_Position`, `gl_PointSize`), fragment shader per pixel (`gl_FragColor`); written as GLSL in backtick strings, `void main()` is the entry point. GLSL is strict: floats need `.0`, types never auto-convert, `distance()` returns a `float`, and naming a variable `distance` hides the built-in. A point is a camera-facing square; round dots = `discard` pixels where `distance(gl_PointCoord, vec2(0.5)) > 0.5` (`gl_PointCoord` starts top-left). Hard `discard` edges are jagged (antialias doesn't help) → soft edge with `1.0 - smoothstep(0.4, 0.5, dist)` as alpha + `transparent: true`. Transparent edges still write depth and cut halos into dots behind, depending on draw order (index 0 = top) → `depthWrite: false`. Size attenuation: split into `viewPosition`; camera looks down -z, so distance = `-viewPosition.z`, size = base ÷ distance (subtracting made far dots bigger). Per-dot `aSize` attribute (item size 1) must be declared in the shader; a name typo gives no error, the attribute just reads 0 (shaders fail silently). Item size 3 ran out of data after 66 dots (only the top third kept sizes). `Math.floor` random formula is for integers only. Wide size ranges look bad → `sqrt`/`log` mapping in Task 6. Also: OrbitControls calls `update()` in its own handlers, so damping only breaks subtly (no glide) without it in the loop.
