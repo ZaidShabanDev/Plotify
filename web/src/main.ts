@@ -26,6 +26,23 @@ document.body.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
+// shaders
+const dotVertexShader = `
+    void main() {
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = 10.0;
+    }`;
+
+const dotFragmentShader = `
+    void main () {
+        float dist = distance(gl_PointCoord, vec2(0.5));
+        float alpha = 1.0 - smoothstep(0.4, 0.5, dist);
+        if(dist > 0.5){
+            discard;
+        }
+        gl_FragColor = vec4(0.13, 0.13, 0.13, alpha);
+    }`;
+
 // dots
 const dotGeometry = new THREE.BufferGeometry();
 dotGeometry.setAttribute(
@@ -33,7 +50,13 @@ dotGeometry.setAttribute(
   new THREE.BufferAttribute(fibonacciSphere(dotCount, sphereRadius), 3),
 );
 
-const dotMaterial = new THREE.PointsMaterial({ color: dotColor, size: 0.03 });
+const dotMaterial = new THREE.ShaderMaterial({
+  vertexShader: dotVertexShader,
+  fragmentShader: dotFragmentShader,
+  transparent: true,
+  depthWrite: false,
+});
+
 const dots = new THREE.Points(dotGeometry, dotMaterial);
 scene.add(dots);
 

@@ -12,7 +12,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 |---|---|---|---|
 | 1 | Scene setup | Scene/camera/renderer, render loop, resize, pixel ratio, OrbitControls + damping | ✅ |
 | 2 | Fibonacci sphere dots | `BufferGeometry`, position attribute, `THREE.Points`, even point distribution | ✅ |
-| 3 | Custom dot shader | `ShaderMaterial`, vertex/fragment shaders, `gl_PointSize`, `gl_PointCoord`, per-dot attributes, size attenuation | ⬜ |
+| 3 | Custom dot shader | `ShaderMaterial`, vertex/fragment shaders, `gl_PointSize`, `gl_PointCoord`, per-dot attributes, size attenuation | 🟡 |
 | 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | ⬜ |
 | 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | ⬜ |
 | 6 | Mock data | Playlist JSON (genre, track count, edges) → size and color attributes | ⬜ |
@@ -53,6 +53,26 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | # | Task | Learn | Status |
 |---|---|---|---|
 | 23 | Save to Spotify | Create playlists from groups | ⬜ |
+
+---
+
+## Task 3: Custom Dot Shader (current)
+
+Branch: `feature/3-dot-shader` · Issue #3
+
+**Steps:**
+1. Swap `PointsMaterial` for a `ShaderMaterial` with minimal inline shaders (fixed pixel size, flat color).
+2. Round dots: `gl_PointCoord` + `discard`, then a soft edge with `smoothstep`.
+3. Size attenuation: scale `gl_PointSize` by view-space depth.
+4. Per-dot size: custom `aSize` attribute read in the vertex shader.
+
+**Things to try:**
+- Set `gl_Position` to `vec4(position, 1.0)` (skip the matrices). What happens to the camera?
+- Make the fragment color depend on `gl_PointCoord`.
+- Remove `discard`, and set alpha to 0 instead (without `transparent: true`).
+- Change the order of the matrices.
+
+**Done when:** round, soft-edged dots, bigger when close and smaller when far, each with its own size.
 
 ---
 
