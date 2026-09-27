@@ -1,10 +1,11 @@
 import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 
 // variables
 const backgroundColor = new THREE.Color(0xd3d3d3);
-// const dotColor = 0x222222;
+const hullColor = 0x999999;
 const dotCount = 200;
 const sphereRadius = 1;
 const minSize = 0.5;
@@ -52,11 +53,9 @@ const dotFragmentShader = `
     }`;
 
 // dots
+const dotPositions = fibonacciSphere(dotCount, sphereRadius);
 const dotGeometry = new THREE.BufferGeometry();
-dotGeometry.setAttribute(
-  'position',
-  new THREE.BufferAttribute(fibonacciSphere(dotCount, sphereRadius), 3),
-);
+dotGeometry.setAttribute('position', new THREE.BufferAttribute(dotPositions, 3));
 dotGeometry.setAttribute(
   'aSize',
   new THREE.BufferAttribute(randomDotSizes(dotCount, minSize, maxSize), 1),
@@ -72,12 +71,20 @@ const dotMaterial = new THREE.ShaderMaterial({
 const dots = new THREE.Points(dotGeometry, dotMaterial);
 scene.add(dots);
 
+// hull
+const hullGeometry = new ConvexGeometry(toVector3Array(dotPositions));
+const hullMaterial = new THREE.MeshBasicMaterial({ color: hullColor, wireframe: true });
+const hullMesh = new THREE.Mesh(hullGeometry, hullMaterial);
+scene.add(hullMesh);
+
+// resize
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// render loop
 function animate() {
   controls.update();
   renderer.render(scene, camera);
@@ -85,6 +92,7 @@ function animate() {
 
 renderer.setAnimationLoop(animate);
 
+// helper functions
 function fibonacciSphere(count: number, radius: number): Float32Array {
   const positions = new Float32Array(count * 3);
   const goldenAngle = Math.PI * (3 - Math.sqrt(5));
@@ -110,4 +118,14 @@ function randomDotSizes(count: number, min: number, max: number): Float32Array {
   }
 
   return sizes;
+}
+
+function toVector3Array(positions: Float32Array): THREE.Vector3[] {
+  const vectors: THREE.Vector3[] = [];
+
+  for (let i = 0; i < positions.length / 3; i++) {
+    vectors.push(new THREE.Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]));
+  }
+
+  return vectors;
 }

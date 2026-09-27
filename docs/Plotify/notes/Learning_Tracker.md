@@ -13,7 +13,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | 1 | Scene setup | Scene/camera/renderer, render loop, resize, pixel ratio, OrbitControls + damping | ✅ |
 | 2 | Fibonacci sphere dots | `BufferGeometry`, position attribute, `THREE.Points`, even point distribution | ✅ |
 | 3 | Custom dot shader | `ShaderMaterial`, vertex/fragment shaders, `gl_PointSize`, `gl_PointCoord`, per-dot attributes, size attenuation | ✅ |
-| 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | ⬜ |
+| 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | 🟡 |
 | 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | ⬜ |
 | 6 | Mock data | Playlist JSON (genre, track count, edges) → size and color attributes | ⬜ |
 | 7 | Relationship arcs | Slerp, great-circle arcs, `Line2`/`LineMaterial`, opacity by score | ⬜ |
@@ -21,7 +21,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | 9 | Force layout on the sphere | Springs + repulsion, projecting back onto the sphere, clustering | ⬜ |
 | 10 | Atmosphere | Idle motion (noise in shader), soft ground shadow, subtle rim glow | ⬜ |
 | 11 | Camera fly-to | Easing, interpolating camera position and target, fading other dots | ⬜ |
-| 12 | Playlist view | Song "galaxy" around the opened dot, back navigation | ⬜ |
+| 12 | Playlist view | Song "galaxy" around the opened dot, back navigation. Idea: split big playlists into genre/mood sub-groups here (main sphere keeps 1 dot = 1 playlist, sized by sqrt + clamp) | ⬜ |
 | 13 | Side panel | HTML panel synced both ways with the sphere | ⬜ |
 | 14 | Lenses and search | Filtering by genre/mood in the shader, fly to a search result | ⬜ |
 
@@ -53,6 +53,23 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | # | Task | Learn | Status |
 |---|---|---|---|
 | 23 | Save to Spotify | Create playlists from groups | ⬜ |
+
+---
+
+## Task 4: Structural Mesh (current)
+
+**Steps:**
+1. Convex hull of the dot positions with `ConvexGeometry` (Three.js addon), shown as a wireframe mesh.
+2. Unique edges: merge duplicate vertices, then collect each triangle edge once (key = smaller index + larger index).
+3. Draw the edges with `LineSegments` + a faint gray `LineBasicMaterial`; remove the wireframe mesh.
+
+**Things to try:**
+- Count the edges with and without removing duplicates.
+- Use the hull wireframe directly as the "mesh". Why is it wasteful?
+- Dot count 20 vs 2000: does the mesh stay even?
+- Move one dot off the sphere (radius 0.8 or 1.2). What happens to the hull?
+
+**Done when:** faint gray triangle lines link each dot to its nearest neighbors, each edge drawn once, dots on top.
 
 ---
 
