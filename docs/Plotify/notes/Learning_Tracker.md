@@ -58,6 +58,10 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 
 ## Task 4: Structural Mesh (current)
 
+Branch: `feature/5-structural-mesh` · Issue #5
+
+**Progress (2026-09-28):** Step 1 done (hull wireframe, pushed). Step 2a done: `deleteAttribute('normal')` + `mergeVertices` → 1188 → 200 vertices, index 1188. **Next: Step 2b**: loop the index 3 at a time, key each edge `min-max` in a `Set`, push both endpoints (6 numbers) for new edges, expect 594.
+
 **Steps:**
 1. Convex hull of the dot positions with `ConvexGeometry` (Three.js addon), shown as a wireframe mesh.
 2. Unique edges: merge duplicate vertices, then collect each triangle edge once (key = smaller index + larger index).

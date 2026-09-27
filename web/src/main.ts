@@ -2,9 +2,10 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // variables
-const backgroundColor = new THREE.Color(0xd3d3d3);
+const backgroundColor = new THREE.Color(0xd9ead3);
 const hullColor = 0x999999;
 const dotCount = 200;
 const sphereRadius = 1;
@@ -77,6 +78,13 @@ const hullMaterial = new THREE.MeshBasicMaterial({ color: hullColor, wireframe: 
 const hullMesh = new THREE.Mesh(hullGeometry, hullMaterial);
 scene.add(hullMesh);
 
+hullGeometry.deleteAttribute('normal');
+console.log('before merge', hullGeometry.attributes.position.count);
+const mergedHull = mergeVertices(hullGeometry);
+console.log('after merge', mergedHull.attributes.position.count);
+console.log('index', mergedHull.index?.count);
+console.log(Object.keys(hullGeometry.attributes));
+
 // resize
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -129,3 +137,7 @@ function toVector3Array(positions: Float32Array): THREE.Vector3[] {
 
   return vectors;
 }
+
+// function mergeAttributes(): Number {
+//     return 1;
+// }
