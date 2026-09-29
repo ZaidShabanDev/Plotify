@@ -6,7 +6,7 @@ import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // variables
 const backgroundColor = new THREE.Color(0xd9ead3);
-const hullColor = 0x999999;
+const edgeColor = 0x999999;
 const dotCount = 200;
 const sphereRadius = 1;
 const minSize = 0.5;
@@ -71,19 +71,24 @@ const dotMaterial = new THREE.ShaderMaterial({
 
 const dots = new THREE.Points(dotGeometry, dotMaterial);
 scene.add(dots);
+dots.renderOrder = 1;
 
 // hull
 const hullGeometry = new ConvexGeometry(toVector3Array(dotPositions));
-const hullMaterial = new THREE.MeshBasicMaterial({ color: hullColor, wireframe: true });
-const hullMesh = new THREE.Mesh(hullGeometry, hullMaterial);
-scene.add(hullMesh);
-
 hullGeometry.deleteAttribute('normal');
-console.log('before merge', hullGeometry.attributes.position.count);
+
+// edges
 const mergedHull = mergeVertices(hullGeometry);
-console.log('after merge', mergedHull.attributes.position.count);
-console.log('index', mergedHull.index?.count);
-console.log(Object.keys(hullGeometry.attributes));
+const edgePositions = extractUniqueEdges(mergedHull);
+const edgeGeometry = new THREE.BufferGeometry();
+edgeGeometry.setAttribute('position', new THREE.BufferAttribute(edgePositions, 3));
+const edgeMaterial = new THREE.LineBasicMaterial({
+  color: edgeColor,
+  transparent: true,
+  opacity: 0.3,
+});
+const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+scene.add(edges);
 
 // resize
 window.addEventListener('resize', () => {
@@ -138,6 +143,45 @@ function toVector3Array(positions: Float32Array): THREE.Vector3[] {
   return vectors;
 }
 
-// function mergeAttributes(): Number {
-//     return 1;
-// }
+function extractUniqueEdges(geometry: THREE.BufferGeometry): Float32Array {
+  const seenEdges = new Set<string>();
+  const edgePositions: number[] = [];
+  const index = geometry.index!;
+  const position = geometry.attributes.position;
+
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i);
+    const b = index.getX(i + 1);
+    const c = index.getX(i + 2);
+
+    addEdgeIfNew(a, b, seenEdges, edgePositions, position);
+    addEdgeIfNew(b, c, seenEdges, edgePositions, position);
+    addEdgeIfNew(c, a, seenEdges, edgePositions, position);
+  }
+
+  return new Float32Array(edgePositions);
+}
+
+function addEdgeIfNew(
+  cornerA: number,
+  cornerB: number,
+  seenEdges: Set<string>,
+  edgePositions: number[],
+  position: THREE.BufferAttribute | THREE.InterleavedBufferAttribute,
+): void {
+  const key = `${Math.min(cornerA, cornerB)}-${Math.max(cornerA, cornerB)}`;
+  if (!seenEdges.has(key)) {
+    seenEdges.add(key);
+
+    edgePositions.push(
+      // corner A
+      position.getX(cornerA),
+      position.getY(cornerA),
+      position.getZ(cornerA),
+      // corner B
+      position.getX(cornerB),
+      position.getY(cornerB),
+      position.getZ(cornerB),
+    );
+  }
+}
