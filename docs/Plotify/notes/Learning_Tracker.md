@@ -13,7 +13,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | 1 | Scene setup | Scene/camera/renderer, render loop, resize, pixel ratio, OrbitControls + damping | ✅ |
 | 2 | Fibonacci sphere dots | `BufferGeometry`, position attribute, `THREE.Points`, even point distribution | ✅ |
 | 3 | Custom dot shader | `ShaderMaterial`, vertex/fragment shaders, `gl_PointSize`, `gl_PointCoord`, per-dot attributes, size attenuation | ✅ |
-| 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | ⬜ |
+| 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | ✅ |
 | 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | ⬜ |
 | 6 | Mock data | Playlist JSON (genre, track count, edges) → size and color attributes | ⬜ |
 | 7 | Relationship arcs | Slerp, great-circle arcs, `Line2`/`LineMaterial`, opacity by score | ⬜ |
@@ -21,7 +21,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | 9 | Force layout on the sphere | Springs + repulsion, projecting back onto the sphere, clustering | ⬜ |
 | 10 | Atmosphere | Idle motion (noise in shader), soft ground shadow, subtle rim glow | ⬜ |
 | 11 | Camera fly-to | Easing, interpolating camera position and target, fading other dots | ⬜ |
-| 12 | Playlist view | Song "galaxy" around the opened dot, back navigation | ⬜ |
+| 12 | Playlist view | Song "galaxy" around the opened dot, back navigation. Idea: split big playlists into genre/mood sub-groups here (main sphere keeps 1 dot = 1 playlist, sized by sqrt + clamp) | ⬜ |
 | 13 | Side panel | HTML panel synced both ways with the sphere | ⬜ |
 | 14 | Lenses and search | Filtering by genre/mood in the shader, fly to a search result | ⬜ |
 
@@ -53,6 +53,25 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | # | Task | Learn | Status |
 |---|---|---|---|
 | 23 | Save to Spotify | Create playlists from groups | ⬜ |
+
+---
+
+## Task 4: Structural Mesh (done)
+
+Branch: `feature/5-structural-mesh` · Issue #5
+
+**Steps:**
+1. Convex hull of the dot positions with `ConvexGeometry` (Three.js addon), shown as a wireframe mesh.
+2. Unique edges: merge duplicate vertices, then collect each triangle edge once (key = smaller index + larger index).
+3. Draw the edges with `LineSegments` + a faint gray `LineBasicMaterial`; remove the wireframe mesh.
+
+**Things to try:**
+- Count the edges with and without removing duplicates.
+- Use the hull wireframe directly as the "mesh". Why is it wasteful?
+- Dot count 20 vs 2000: does the mesh stay even?
+- Move one dot off the sphere (radius 0.8 or 1.2). What happens to the hull?
+
+**Done when:** faint gray triangle lines link each dot to its nearest neighbors, each edge drawn once, dots on top.
 
 ---
 
@@ -124,3 +143,4 @@ Add a line per task: what you learned, what broke, what surprised you.
 - **Task 1:** Used Vite + TypeScript (not JS). `scene.background` is a property (use `=`), not a method. JS comma operator: `(a, b)` returns `b` with no error. Resize = `aspect` + `updateProjectionMatrix()` (matrix is cached) + `setSize`. Damping needs `controls.update()` every frame, or it lags and stops dead. `near`/`far` clip anything outside the frustum. UV sphere bunches at poles; icosahedron is even. Each geometry has its own args (`Icosahedron(radius, detail)`). Off-center objects stretch with high FOV.
 - **Task 2:** Built it in steps: 3 hand-placed dots → line of dots → Fibonacci sphere. `BufferGeometry` holds one flat `Float32Array`; the attribute's item size cuts it into vertices (vertex count = floor(length ÷ itemSize), leftovers ignored). Point `i` lives at `[i*3]`, `[i*3+1]`, `[i*3+2]`: index goes inside the brackets, value on the right. Same data draws differently by object type (`Points` = sprites, `Mesh` = triangles). Item size 2 → z filled with 0, flat scrambled plane. Material `size` (dot size) ≠ attribute item size: mixed them up once, `size: 2` made one solid block. Random y/θ is even on average but clumps and leaves gaps; Fibonacci (golden angle + equal-height slices) is even everywhere.
 - **Task 3:** Vertex shader runs per dot (`gl_Position`, `gl_PointSize`), fragment shader per pixel (`gl_FragColor`); written as GLSL in backtick strings, `void main()` is the entry point. GLSL is strict: floats need `.0`, types never auto-convert, `distance()` returns a `float`, and naming a variable `distance` hides the built-in. A point is a camera-facing square; round dots = `discard` pixels where `distance(gl_PointCoord, vec2(0.5)) > 0.5` (`gl_PointCoord` starts top-left). Hard `discard` edges are jagged (antialias doesn't help) → soft edge with `1.0 - smoothstep(0.4, 0.5, dist)` as alpha + `transparent: true`. Transparent edges still write depth and cut halos into dots behind, depending on draw order (index 0 = top) → `depthWrite: false`. Size attenuation: split into `viewPosition`; camera looks down -z, so distance = `-viewPosition.z`, size = base ÷ distance (subtracting made far dots bigger). Per-dot `aSize` attribute (item size 1) must be declared in the shader; a name typo gives no error, the attribute just reads 0 (shaders fail silently). Item size 3 ran out of data after 66 dots (only the top third kept sizes). `Math.floor` random formula is for integers only. Wide size ranges look bad → `sqrt`/`log` mapping in Task 6. Also: OrbitControls calls `update()` in its own handlers, so damping only breaks subtly (no glide) without it in the loop.
+- **Task 4:** Convex hull = the tight "plastic wrap" around the points; since every dot is on the sphere, every dot is a hull corner and each hull triangle joins 3 neighbors. `ConvexGeometry` wants `Vector3[]` (one `Vector3` with all 3 numbers per dot; missing args default to 0 → all points on one axis gave a flat line). Mesh = triangles; every visible object = geometry + material + object type (`Mesh`/`Points`/`LineSegments`); lights/`Group` have none. Wireframe draws each edge twice (shared by 2 triangles): V = 200 → 396 triangles, 594 edges (3V − 6), ~6 edges per dot. `ConvexGeometry` is non-indexed; `mergeVertices` only merges when all attributes match, so flat per-face `normal`s blocked it (1188 → 1188) until `deleteAttribute('normal')` (→ 200). Loop the index 3 at a time with `getX(i + 1)` (offset inside the brackets, not on the value). Edge key = `min-max` in a `Set` (Set ignores duplicate adds; `has` tells if new). Scope: a Set created inside the helper was new and empty on every call → pass it in (or closure). Store return values, or they're lost. File order: build → run → helpers. Transparent objects at the same center draw in add order, and dots with `depthWrite: false` got painted over by lines → `dots.renderOrder = 1`.
