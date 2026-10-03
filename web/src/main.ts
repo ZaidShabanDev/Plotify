@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import dotVertexShader from './shaders/dot.vert.glsl?raw';
+import dotFragmentShader from './shaders/dot.frag.glsl?raw';
 
 // variables
 const backgroundColor = new THREE.Color(0xd9ead3);
@@ -31,45 +33,6 @@ document.body.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-// shaders
-const dotVertexShader = `
-    attribute float aSize;
-    varying float vOpacity;
-    uniform float uBackOpacity;
-    uniform float uRadius;
-
-    void main() {
-        vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-        vec4 viewCenter = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-        
-        // valid only while the sphere is centered at the object origin
-        vec3 viewNormal = normalMatrix * normalize(position);
-        vec3 toCamera = normalize(-viewPosition.xyz);
-
-        float facing = dot(viewNormal, toCamera);
-        float facingVisibility = smoothstep(-1.0, 1.0, facing);
-        float cameraDistance = length(viewCenter.xyz);
-        float outsideWeight = smoothstep(uRadius - 0.1, uRadius, cameraDistance);
-        float visibility = mix(1.0, facingVisibility, outsideWeight);
-        vOpacity = mix(uBackOpacity, 1.0, visibility);
-
-        gl_Position = projectionMatrix * viewPosition;
-        gl_PointSize = 20.0 / (-viewPosition.z) * aSize;
-    }`;
-
-const dotFragmentShader = `
-    varying float vOpacity;
-
-    void main () {
-        float dist = distance(gl_PointCoord, vec2(0.5));
-        float alpha = 1.0 - smoothstep(0.4, 0.5, dist);
-        if(dist > 0.5){
-            discard;
-        }
-
-        gl_FragColor = vec4(0.13, 0.13, 0.13, alpha * vOpacity);
-    }`;
-
 // dots
 const dotPositions = fibonacciSphere(dotCount, sphereRadius);
 const dotGeometry = new THREE.BufferGeometry();
@@ -79,7 +42,7 @@ dotGeometry.setAttribute(
   new THREE.BufferAttribute(randomDotSizes(dotCount, minSize, maxSize), 1),
 );
 
-const dotMaterial = new THREE.ShaderMaterial({
+const dotMaterial = new THREE.RawShaderMaterial({
   vertexShader: dotVertexShader,
   fragmentShader: dotFragmentShader,
   transparent: true,
