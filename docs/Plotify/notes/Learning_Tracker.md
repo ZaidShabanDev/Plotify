@@ -4,6 +4,8 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 
 **Status:** ⬜ Not started · 🟡 In progress · ✅ Done
 
+**In progress:** Task 5 (depth fade). Branch `feature/<issue>-depth-fade` (issue probably #7).
+
 ---
 
 ## Stage A: Sphere Foundations (mock data)
@@ -14,7 +16,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | 2 | Fibonacci sphere dots | `BufferGeometry`, position attribute, `THREE.Points`, even point distribution | ✅ |
 | 3 | Custom dot shader | `ShaderMaterial`, vertex/fragment shaders, `gl_PointSize`, `gl_PointCoord`, per-dot attributes, size attenuation | ✅ |
 | 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | ✅ |
-| 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | ⬜ |
+| 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | 🟡 |
 | 6 | Mock data | Playlist JSON (genre, track count, edges) → size and color attributes | ⬜ |
 | 7 | Relationship arcs | Slerp, great-circle arcs, `Line2`/`LineMaterial`, opacity by score | ⬜ |
 | 8 | Hover and picking | `Raycaster` on points, hover attribute, 3D → 2D projection for an HTML tooltip | ⬜ |
@@ -53,6 +55,27 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | # | Task | Learn | Status |
 |---|---|---|---|
 | 23 | Save to Spotify | Create playlists from groups | ⬜ |
+
+---
+
+## Task 5: Depth Fade (in progress)
+
+Branch: `feature/<issue>-depth-fade`
+
+**Steps:**
+1. Dots: in the vertex shader, find how far each dot is in front of / behind the sphere center (view space), turn it into a 0..1 `vFade` varying, multiply the fragment alpha by it. ✅ Tried depth-based, switched to facing-based (`dot(normalView, toCamera)`); fade is turned off when the camera is inside the sphere (`length(centerView.xyz)` vs radius).
+2. Uniforms: move the tuning numbers (`uRadius`, `uBackOpacity`) into uniforms; change one from JS each frame to prove it updates live. ✅
+2b. Move the shaders out of `main.ts` into `src/shaders/*.glsl` files (Vite `?raw` import).
+3. Lines: swap `LineBasicMaterial` for a `ShaderMaterial` with the same fade; share the uniform objects with the dots.
+
+**Things to try:**
+- Use `position.z` (object space) instead of view space, then orbit. What goes wrong?
+- Hard cut with `step()` instead of a smooth fade. Look at a line that crosses the edge.
+- `scene.fog` + plain `LineBasicMaterial`, then zoom in and out. Compare with the shader version.
+- Use a uniform in GLSL without adding it to `uniforms` in JS.
+- Remove `transparent: true` from the line material.
+
+**Done when:** back-side dots and lines are clearly lighter, front side stays strong, the fade follows the camera while orbiting, and one uniform controls both.
 
 ---
 

@@ -8,9 +8,10 @@ import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 const backgroundColor = new THREE.Color(0xd9ead3);
 const edgeColor = 0x999999;
 const dotCount = 200;
-const sphereRadius = 1;
+const sphereRadius = 1.0;
 const minSize = 0.5;
 const maxSize = 2.0;
+const backOpacity = 0.05;
 
 // scene
 const scene = new THREE.Scene();
@@ -33,16 +34,32 @@ controls.enableDamping = true;
 // shaders
 const dotVertexShader = `
     attribute float aSize;
-    
+    varying float vOpacity;
+    uniform float uBackOpacity;
+    uniform float uRadius;
+
     void main() {
         vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-        gl_Position = projectionMatrix * viewPosition;
-        float baseSize = 20.0 / (-viewPosition.z);
+        vec4 viewCenter = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        
+        // valid only while the sphere is centered at the object origin
+        vec3 viewNormal = normalMatrix * normalize(position);
+        vec3 toCamera = normalize(-viewPosition.xyz);
 
-        gl_PointSize = baseSize * aSize;
+        float facing = dot(viewNormal, toCamera);
+        float facingVisibility = smoothstep(-1.0, 1.0, facing);
+        float cameraDistance = length(viewCenter.xyz);
+        float outsideWeight = smoothstep(uRadius - 0.1, uRadius, cameraDistance);
+        float visibility = mix(1.0, facingVisibility, outsideWeight);
+        vOpacity = mix(uBackOpacity, 1.0, visibility);
+
+        gl_Position = projectionMatrix * viewPosition;
+        gl_PointSize = 20.0 / (-viewPosition.z) * aSize;
     }`;
 
 const dotFragmentShader = `
+    varying float vOpacity;
+
     void main () {
         float dist = distance(gl_PointCoord, vec2(0.5));
         float alpha = 1.0 - smoothstep(0.4, 0.5, dist);
@@ -50,7 +67,7 @@ const dotFragmentShader = `
             discard;
         }
 
-        gl_FragColor = vec4(0.13, 0.13, 0.13, alpha);
+        gl_FragColor = vec4(0.13, 0.13, 0.13, alpha * vOpacity);
     }`;
 
 // dots
@@ -67,6 +84,10 @@ const dotMaterial = new THREE.ShaderMaterial({
   fragmentShader: dotFragmentShader,
   transparent: true,
   depthWrite: false,
+  uniforms: {
+    uBackOpacity: { value: backOpacity },
+    uRadius: { value: sphereRadius },
+  },
 });
 
 const dots = new THREE.Points(dotGeometry, dotMaterial);
