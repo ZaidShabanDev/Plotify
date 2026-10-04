@@ -5,15 +5,22 @@ import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import dotVertexShader from './shaders/dot.vert.glsl?raw';
 import dotFragmentShader from './shaders/dot.frag.glsl?raw';
+import lineVertexShader from './shaders/line.vert.glsl?raw';
+import lineFragmentShader from './shaders/line.frag.glsl?raw';
 
 // variables
 const backgroundColor = new THREE.Color(0xd9ead3);
 const edgeColor = 0x999999;
+const edgeOpacity = 0.3;
 const dotCount = 200;
 const sphereRadius = 1.0;
 const minSize = 0.5;
 const maxSize = 2.0;
 const backOpacity = 0.05;
+const sharedUniforms = {
+  uBackOpacity: { value: backOpacity },
+  uRadius: { value: sphereRadius },
+};
 
 // scene
 const scene = new THREE.Scene();
@@ -47,10 +54,7 @@ const dotMaterial = new THREE.RawShaderMaterial({
   fragmentShader: dotFragmentShader,
   transparent: true,
   depthWrite: false,
-  uniforms: {
-    uBackOpacity: { value: backOpacity },
-    uRadius: { value: sphereRadius },
-  },
+  uniforms: { ...sharedUniforms },
 });
 
 const dots = new THREE.Points(dotGeometry, dotMaterial);
@@ -66,10 +70,16 @@ const mergedHull = mergeVertices(hullGeometry);
 const edgePositions = extractUniqueEdges(mergedHull);
 const edgeGeometry = new THREE.BufferGeometry();
 edgeGeometry.setAttribute('position', new THREE.BufferAttribute(edgePositions, 3));
-const edgeMaterial = new THREE.LineBasicMaterial({
-  color: edgeColor,
+const edgeMaterial = new THREE.RawShaderMaterial({
+  vertexShader: lineVertexShader,
+  fragmentShader: lineFragmentShader,
   transparent: true,
-  opacity: 0.3,
+  uniforms: {
+    ...sharedUniforms,
+    uColor: { value: new THREE.Color(edgeColor) },
+    uLineOpacity: { value: edgeOpacity },
+  },
+  depthWrite: false,
 });
 const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
 scene.add(edges);
