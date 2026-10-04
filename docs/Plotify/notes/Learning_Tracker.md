@@ -4,6 +4,8 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 
 **Status:** ⬜ Not started · 🟡 In progress · ✅ Done
 
+**Next up:** remove the duplicated fade code in the dot/line shaders (shared GLSL via `#include`, e.g. `vite-plugin-glsl`: package needs approval), then Task 6 (mock data).
+
 ---
 
 ## Stage A: Sphere Foundations (mock data)
@@ -14,7 +16,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | 2 | Fibonacci sphere dots | `BufferGeometry`, position attribute, `THREE.Points`, even point distribution | ✅ |
 | 3 | Custom dot shader | `ShaderMaterial`, vertex/fragment shaders, `gl_PointSize`, `gl_PointCoord`, per-dot attributes, size attenuation | ✅ |
 | 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | ✅ |
-| 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | ⬜ |
+| 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | ✅ |
 | 6 | Mock data | Playlist JSON (genre, track count, edges) → size and color attributes | ⬜ |
 | 7 | Relationship arcs | Slerp, great-circle arcs, `Line2`/`LineMaterial`, opacity by score | ⬜ |
 | 8 | Hover and picking | `Raycaster` on points, hover attribute, 3D → 2D projection for an HTML tooltip | ⬜ |
@@ -53,6 +55,27 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | # | Task | Learn | Status |
 |---|---|---|---|
 | 23 | Save to Spotify | Create playlists from groups | ⬜ |
+
+---
+
+## Task 5: Depth Fade (done)
+
+Branch: `feature/7-depth-fade` · Issue #7
+
+**Steps:**
+1. Dots: in the vertex shader, find how far each dot is in front of / behind the sphere center (view space), turn it into a 0..1 `vFade` varying, multiply the fragment alpha by it. ✅ Tried depth-based, switched to facing-based (`dot(normalView, toCamera)`); fade is turned off when the camera is inside the sphere (`length(centerView.xyz)` vs radius).
+2. Uniforms: move the tuning numbers (`uRadius`, `uBackOpacity`) into uniforms; change one from JS each frame to prove it updates live. ✅
+2b. Move the shaders out of `main.ts` into `src/shaders/*.glsl` files (Vite `?raw` import). ✅ Switched to `RawShaderMaterial` so the files are complete (no hidden prefix, no linter false alarms).
+3. Lines: swap `LineBasicMaterial` for a `ShaderMaterial` with the same fade; share the uniform objects with the dots. ✅ (`RawShaderMaterial`, `sharedUniforms` spread into both materials)
+
+**Things to try:**
+- Use `position.z` (object space) instead of view space, then orbit. What goes wrong?
+- Hard cut with `step()` instead of a smooth fade. Look at a line that crosses the edge.
+- `scene.fog` + plain `LineBasicMaterial`, then zoom in and out. Compare with the shader version.
+- Use a uniform in GLSL without adding it to `uniforms` in JS.
+- Remove `transparent: true` from the line material.
+
+**Done when:** back-side dots and lines are clearly lighter, front side stays strong, the fade follows the camera while orbiting, and one uniform controls both.
 
 ---
 
@@ -144,3 +167,4 @@ Add a line per task: what you learned, what broke, what surprised you.
 - **Task 2:** Built it in steps: 3 hand-placed dots → line of dots → Fibonacci sphere. `BufferGeometry` holds one flat `Float32Array`; the attribute's item size cuts it into vertices (vertex count = floor(length ÷ itemSize), leftovers ignored). Point `i` lives at `[i*3]`, `[i*3+1]`, `[i*3+2]`: index goes inside the brackets, value on the right. Same data draws differently by object type (`Points` = sprites, `Mesh` = triangles). Item size 2 → z filled with 0, flat scrambled plane. Material `size` (dot size) ≠ attribute item size: mixed them up once, `size: 2` made one solid block. Random y/θ is even on average but clumps and leaves gaps; Fibonacci (golden angle + equal-height slices) is even everywhere.
 - **Task 3:** Vertex shader runs per dot (`gl_Position`, `gl_PointSize`), fragment shader per pixel (`gl_FragColor`); written as GLSL in backtick strings, `void main()` is the entry point. GLSL is strict: floats need `.0`, types never auto-convert, `distance()` returns a `float`, and naming a variable `distance` hides the built-in. A point is a camera-facing square; round dots = `discard` pixels where `distance(gl_PointCoord, vec2(0.5)) > 0.5` (`gl_PointCoord` starts top-left). Hard `discard` edges are jagged (antialias doesn't help) → soft edge with `1.0 - smoothstep(0.4, 0.5, dist)` as alpha + `transparent: true`. Transparent edges still write depth and cut halos into dots behind, depending on draw order (index 0 = top) → `depthWrite: false`. Size attenuation: split into `viewPosition`; camera looks down -z, so distance = `-viewPosition.z`, size = base ÷ distance (subtracting made far dots bigger). Per-dot `aSize` attribute (item size 1) must be declared in the shader; a name typo gives no error, the attribute just reads 0 (shaders fail silently). Item size 3 ran out of data after 66 dots (only the top third kept sizes). `Math.floor` random formula is for integers only. Wide size ranges look bad → `sqrt`/`log` mapping in Task 6. Also: OrbitControls calls `update()` in its own handlers, so damping only breaks subtly (no glide) without it in the loop.
 - **Task 4:** Convex hull = the tight "plastic wrap" around the points; since every dot is on the sphere, every dot is a hull corner and each hull triangle joins 3 neighbors. `ConvexGeometry` wants `Vector3[]` (one `Vector3` with all 3 numbers per dot; missing args default to 0 → all points on one axis gave a flat line). Mesh = triangles; every visible object = geometry + material + object type (`Mesh`/`Points`/`LineSegments`); lights/`Group` have none. Wireframe draws each edge twice (shared by 2 triangles): V = 200 → 396 triangles, 594 edges (3V − 6), ~6 edges per dot. `ConvexGeometry` is non-indexed; `mergeVertices` only merges when all attributes match, so flat per-face `normal`s blocked it (1188 → 1188) until `deleteAttribute('normal')` (→ 200). Loop the index 3 at a time with `getX(i + 1)` (offset inside the brackets, not on the value). Edge key = `min-max` in a `Set` (Set ignores duplicate adds; `has` tells if new). Scope: a Set created inside the helper was new and empty on every call → pass it in (or closure). Store return values, or they're lost. File order: build → run → helpers. Transparent objects at the same center draw in add order, and dots with `depthWrite: false` got painted over by lines → `dots.renderOrder = 1`.
+- **Task 5:** Object space (`position`, never changes) vs view space (camera at 0, looking down −z): "back side" must be measured in view space. Tried depth vs sphere center (`(dot z − center z) / radius` → −1..1), then switched to facing: `dot(viewNormal, toCamera)` (+1 faces camera, 0 at the visible rim, −1 faces away). Normal = perpendicular to the surface; on a sphere it's `normalize(position)`, moved to view space once with `normalMatrix` (never twice). `w = 1.0` = point, `w = 0.0` = direction; `length(vec4)` silently includes w → `.xyz`. Inside the sphere every dot faces away → blend the fade off by camera distance (`length(viewCenter.xyz)` vs radius). `smoothstep(e0, e1, x)` = how far through the range (edge0 > edge1 is undefined); `mix(a, b, t)` = a at 0, b at 1; a 0..1 visibility is not an opacity. Attribute = per vertex from JS; uniform = one value per draw, changeable every frame with no recompile (pulse test, `sin × 0.5 + 0.5` → 0..1); varying = vertex → fragment, interpolated (lines get a gradient even with `step()`). Only turn a number into a uniform if it *means* that thing (most `1.0`s weren't the radius). Pass the function to `setAnimationLoop`, don't call it. `0 - vec3` fails (int vs float). Shaders moved to `.glsl` with Vite `?raw`; Prettier has no GLSL → WebGL GLSL Editor via `"[glsl]"`. `ShaderMaterial` adds a hidden prefix (precision + built-ins) → linter false alarms → `RawShaderMaterial`: declare everything, built-ins only get data with the exact name. `{ ...sharedUniforms }` copies references, so one `.value` updates dots and lines. `depthWrite: false` on faint lines stops them cutting slices out of back dots.

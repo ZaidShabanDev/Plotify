@@ -3,14 +3,24 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import dotVertexShader from './shaders/dot.vert.glsl?raw';
+import dotFragmentShader from './shaders/dot.frag.glsl?raw';
+import lineVertexShader from './shaders/line.vert.glsl?raw';
+import lineFragmentShader from './shaders/line.frag.glsl?raw';
 
 // variables
 const backgroundColor = new THREE.Color(0xd9ead3);
 const edgeColor = 0x999999;
+const edgeOpacity = 0.3;
 const dotCount = 200;
-const sphereRadius = 1;
+const sphereRadius = 1.0;
 const minSize = 0.5;
 const maxSize = 2.0;
+const backOpacity = 0.05;
+const sharedUniforms = {
+  uBackOpacity: { value: backOpacity },
+  uRadius: { value: sphereRadius },
+};
 
 // scene
 const scene = new THREE.Scene();
@@ -30,29 +40,6 @@ document.body.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-// shaders
-const dotVertexShader = `
-    attribute float aSize;
-    
-    void main() {
-        vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-        gl_Position = projectionMatrix * viewPosition;
-        float baseSize = 20.0 / (-viewPosition.z);
-
-        gl_PointSize = baseSize * aSize;
-    }`;
-
-const dotFragmentShader = `
-    void main () {
-        float dist = distance(gl_PointCoord, vec2(0.5));
-        float alpha = 1.0 - smoothstep(0.4, 0.5, dist);
-        if(dist > 0.5){
-            discard;
-        }
-
-        gl_FragColor = vec4(0.13, 0.13, 0.13, alpha);
-    }`;
-
 // dots
 const dotPositions = fibonacciSphere(dotCount, sphereRadius);
 const dotGeometry = new THREE.BufferGeometry();
@@ -62,11 +49,12 @@ dotGeometry.setAttribute(
   new THREE.BufferAttribute(randomDotSizes(dotCount, minSize, maxSize), 1),
 );
 
-const dotMaterial = new THREE.ShaderMaterial({
+const dotMaterial = new THREE.RawShaderMaterial({
   vertexShader: dotVertexShader,
   fragmentShader: dotFragmentShader,
   transparent: true,
   depthWrite: false,
+  uniforms: { ...sharedUniforms },
 });
 
 const dots = new THREE.Points(dotGeometry, dotMaterial);
@@ -82,10 +70,16 @@ const mergedHull = mergeVertices(hullGeometry);
 const edgePositions = extractUniqueEdges(mergedHull);
 const edgeGeometry = new THREE.BufferGeometry();
 edgeGeometry.setAttribute('position', new THREE.BufferAttribute(edgePositions, 3));
-const edgeMaterial = new THREE.LineBasicMaterial({
-  color: edgeColor,
+const edgeMaterial = new THREE.RawShaderMaterial({
+  vertexShader: lineVertexShader,
+  fragmentShader: lineFragmentShader,
   transparent: true,
-  opacity: 0.3,
+  uniforms: {
+    ...sharedUniforms,
+    uColor: { value: new THREE.Color(edgeColor) },
+    uLineOpacity: { value: edgeOpacity },
+  },
+  depthWrite: false,
 });
 const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
 scene.add(edges);
