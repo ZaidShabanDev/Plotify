@@ -7,6 +7,7 @@ import dotVertexShader from './shaders/dot.vert.glsl?raw';
 import dotFragmentShader from './shaders/dot.frag.glsl?raw';
 import lineVertexShader from './shaders/line.vert.glsl?raw';
 import lineFragmentShader from './shaders/line.frag.glsl?raw';
+import fadeShaderChunk from './shaders/fade.glsl?raw';
 
 // variables
 const backgroundColor = new THREE.Color(0xd9ead3);
@@ -50,7 +51,7 @@ dotGeometry.setAttribute(
 );
 
 const dotMaterial = new THREE.RawShaderMaterial({
-  vertexShader: dotVertexShader,
+  vertexShader: fadeShaderChunk + '\n' + dotVertexShader,
   fragmentShader: dotFragmentShader,
   transparent: true,
   depthWrite: false,
@@ -71,7 +72,7 @@ const edgePositions = extractUniqueEdges(mergedHull);
 const edgeGeometry = new THREE.BufferGeometry();
 edgeGeometry.setAttribute('position', new THREE.BufferAttribute(edgePositions, 3));
 const edgeMaterial = new THREE.RawShaderMaterial({
-  vertexShader: lineVertexShader,
+  vertexShader: fadeShaderChunk + '\n' + lineVertexShader,
   fragmentShader: lineFragmentShader,
   transparent: true,
   uniforms: {
