@@ -4,7 +4,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 
 **Status:** ⬜ Not started · 🟡 In progress · ✅ Done
 
-**Next up:** Task 6 (mock data).
+**In progress:** Task 6 (mock data). Branch `feature/<issue>-mock-data`.
 
 ---
 
@@ -17,7 +17,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | 3 | Custom dot shader | `ShaderMaterial`, vertex/fragment shaders, `gl_PointSize`, `gl_PointCoord`, per-dot attributes, size attenuation | ✅ |
 | 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | ✅ |
 | 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | ✅ |
-| 6 | Mock data | Playlist JSON (genre, track count, edges) → size and color attributes | ⬜ |
+| 6 | Mock data | Playlist JSON (genre, track count, edges) → size and color attributes | 🟡 |
 | 7 | Relationship arcs | Slerp, great-circle arcs, `Line2`/`LineMaterial`, opacity by score | ⬜ |
 | 8 | Hover and picking | `Raycaster` on points, hover attribute, 3D → 2D projection for an HTML tooltip | ⬜ |
 | 9 | Force layout on the sphere | Springs + repulsion, projecting back onto the sphere, clustering | ⬜ |
@@ -55,6 +55,26 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | # | Task | Learn | Status |
 |---|---|---|---|
 | 23 | Save to Spotify | Create playlists from groups | ⬜ |
+
+---
+
+## Task 6: Mock Data (in progress)
+
+Branch: `feature/<issue>-mock-data`
+
+**Steps:**
+1. Hand-write `web/src/data/playlists.json` (~30 playlists, 6–8 genre families with colors, a few edges for Task 7) and a TS type for it.
+2. Import it; dot count comes from the data, not a constant.
+3. Size: track count → `aSize` with a sqrt mapping + clamp (replaces random sizes).
+4. Color: family color → per-dot `aColor` attribute (item size 3) → varying → fragment shader.
+
+**Things to try:**
+- Linear vs sqrt vs log size mapping with a 5-track and a 1500-track playlist.
+- Item size 1 instead of 3 for the color attribute.
+- Compare a dot's on-screen color with its hex in a color picker (color spaces).
+- Sort playlists by family before placing them. What pattern appears on the Fibonacci sphere?
+
+**Done when:** every dot is a playlist from the JSON, size follows track count without giant outliers, color follows genre family, and the depth fade still works.
 
 ---
 
