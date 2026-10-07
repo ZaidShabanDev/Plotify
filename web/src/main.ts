@@ -8,12 +8,15 @@ import dotFragmentShader from './shaders/dot.frag.glsl?raw';
 import lineVertexShader from './shaders/line.vert.glsl?raw';
 import lineFragmentShader from './shaders/line.frag.glsl?raw';
 import fadeShaderChunk from './shaders/fade.glsl?raw';
+import data from './data/playlists.json';
+import type { Family, Playlist, PlaylistData } from './data/types';
 
 // variables
+const playlistData: PlaylistData = data;
 const backgroundColor = new THREE.Color(0xd9ead3);
 const edgeColor = 0x999999;
 const edgeOpacity = 0.3;
-const dotCount = 200;
+const dotCount = playlistData.playlists.length;
 const sphereRadius = 1.0;
 const minSize = 0.5;
 const maxSize = 2.0;
@@ -22,6 +25,8 @@ const sharedUniforms = {
   uBackOpacity: { value: backOpacity },
   uRadius: { value: sphereRadius },
 };
+
+const familyLookup = buildFamilyLookup(playlistData);
 
 // scene
 const scene = new THREE.Scene();
@@ -45,6 +50,10 @@ controls.enableDamping = true;
 const dotPositions = fibonacciSphere(dotCount, sphereRadius);
 const dotGeometry = new THREE.BufferGeometry();
 dotGeometry.setAttribute('position', new THREE.BufferAttribute(dotPositions, 3));
+dotGeometry.setAttribute(
+  'aColor',
+  new THREE.BufferAttribute(playlistColors(playlistData, familyLookup), 3),
+);
 dotGeometry.setAttribute(
   'aSize',
   new THREE.BufferAttribute(randomDotSizes(dotCount, minSize, maxSize), 1),
@@ -179,4 +188,37 @@ function addEdgeIfNew(
       position.getZ(cornerB),
     );
   }
+}
+
+function buildFamilyLookup(data: PlaylistData): Map<string, Family> {
+  const map = new Map<string, Family>();
+
+  data.families.forEach((family: Family) => {
+    if (map.has(family.id)) {
+      throw new Error(`Duplicate family id "${family.id}"`);
+    }
+    map.set(family.id, family);
+  });
+
+  data.playlists.forEach((playlist: Playlist) => {
+    if (!map.has(playlist.familyId)) {
+      throw new Error(`Playlist "${playlist.id}" has unknown familyId "${playlist.familyId}"`);
+    }
+  });
+
+  return map;
+}
+
+function playlistColors(data: PlaylistData, lookup: Map<string, Family>): Float32Array {
+  const colors = new Float32Array(data.playlists.length * 3);
+
+  data.playlists.forEach((playlist, i) => {
+    const family = lookup.get(playlist.familyId)!;
+    const color = new THREE.Color(family.color);
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  });
+
+  return colors;
 }

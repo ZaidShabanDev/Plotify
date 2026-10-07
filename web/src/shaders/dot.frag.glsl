@@ -1,6 +1,7 @@
 precision highp float;
 
 varying float vOpacity;
+varying vec3 vColor;
 
 void main() {
     float dist = distance(gl_PointCoord, vec2(0.5));
@@ -9,5 +10,5 @@ void main() {
         discard;
     }
 
-    gl_FragColor = vec4(0.13, 0.13, 0.13, alpha * vOpacity);
+    gl_FragColor = vec4(vColor, alpha * vOpacity);
 }
