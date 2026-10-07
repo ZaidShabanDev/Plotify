@@ -4,7 +4,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 
 **Status:** ⬜ Not started · 🟡 In progress · ✅ Done
 
-**Next up:** Task 6 (mock data).
+**Next up:** Task 7 (relationship arcs).
 
 ---
 
@@ -17,7 +17,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | 3 | Custom dot shader | `ShaderMaterial`, vertex/fragment shaders, `gl_PointSize`, `gl_PointCoord`, per-dot attributes, size attenuation | ✅ |
 | 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | ✅ |
 | 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | ✅ |
-| 6 | Mock data | Playlist JSON (genre, track count, edges) → size and color attributes | ⬜ |
+| 6 | Mock data | Playlist JSON (genre, track count, edges) → size and color attributes | ✅ |
 | 7 | Relationship arcs | Slerp, great-circle arcs, `Line2`/`LineMaterial`, opacity by score | ⬜ |
 | 8 | Hover and picking | `Raycaster` on points, hover attribute, 3D → 2D projection for an HTML tooltip | ⬜ |
 | 9 | Force layout on the sphere | Springs + repulsion, projecting back onto the sphere, clustering | ⬜ |
@@ -55,6 +55,26 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | # | Task | Learn | Status |
 |---|---|---|---|
 | 23 | Save to Spotify | Create playlists from groups | ⬜ |
+
+---
+
+## Task 6: Mock Data (done)
+
+Branch: `feature/11-mock-data` · Issue #11
+
+**Steps:**
+1. Hand-write `web/src/data/playlists.json` (~30 playlists, 6–8 genre families with colors, a few edges for Task 7) and a TS type for it. ✅ 30 playlists, 8 families, `types.ts` with `PlaylistData` root type.
+2. Import it; dot count comes from the data, not a constant. ✅ Plus `buildFamilyLookup` (Map, throws on duplicate family or unknown `familyId`).
+3. Size: track count → `aSize` with a sqrt mapping + clamp (replaces random sizes). ✅ `playlistSizes`: sqrt + `trackCountCap`, guard for a zero range.
+4. Color: family color → per-dot `aColor` attribute (item size 3) → varying → fragment shader. ✅ `playlistColors` + shared `color.glsl` chunk (linear → sRGB at output, dots and edges).
+
+**Things to try:**
+- Linear vs sqrt vs log size mapping with a 5-track and a 1500-track playlist.
+- Item size 1 instead of 3 for the color attribute.
+- Compare a dot's on-screen color with its hex in a color picker (color spaces).
+- Sort playlists by family before placing them. What pattern appears on the Fibonacci sphere?
+
+**Done when:** every dot is a playlist from the JSON, size follows track count without giant outliers, color follows genre family, and the depth fade still works.
 
 ---
 
@@ -169,3 +189,4 @@ Add a line per task: what you learned, what broke, what surprised you.
 - **Task 4:** Convex hull = the tight "plastic wrap" around the points; since every dot is on the sphere, every dot is a hull corner and each hull triangle joins 3 neighbors. `ConvexGeometry` wants `Vector3[]` (one `Vector3` with all 3 numbers per dot; missing args default to 0 → all points on one axis gave a flat line). Mesh = triangles; every visible object = geometry + material + object type (`Mesh`/`Points`/`LineSegments`); lights/`Group` have none. Wireframe draws each edge twice (shared by 2 triangles): V = 200 → 396 triangles, 594 edges (3V − 6), ~6 edges per dot. `ConvexGeometry` is non-indexed; `mergeVertices` only merges when all attributes match, so flat per-face `normal`s blocked it (1188 → 1188) until `deleteAttribute('normal')` (→ 200). Loop the index 3 at a time with `getX(i + 1)` (offset inside the brackets, not on the value). Edge key = `min-max` in a `Set` (Set ignores duplicate adds; `has` tells if new). Scope: a Set created inside the helper was new and empty on every call → pass it in (or closure). Store return values, or they're lost. File order: build → run → helpers. Transparent objects at the same center draw in add order, and dots with `depthWrite: false` got painted over by lines → `dots.renderOrder = 1`.
 - **Task 5:** Object space (`position`, never changes) vs view space (camera at 0, looking down −z): "back side" must be measured in view space. Tried depth vs sphere center (`(dot z − center z) / radius` → −1..1), then switched to facing: `dot(viewNormal, toCamera)` (+1 faces camera, 0 at the visible rim, −1 faces away). Normal = perpendicular to the surface; on a sphere it's `normalize(position)`, moved to view space once with `normalMatrix` (never twice). `w = 1.0` = point, `w = 0.0` = direction; `length(vec4)` silently includes w → `.xyz`. Inside the sphere every dot faces away → blend the fade off by camera distance (`length(viewCenter.xyz)` vs radius). `smoothstep(e0, e1, x)` = how far through the range (edge0 > edge1 is undefined); `mix(a, b, t)` = a at 0, b at 1; a 0..1 visibility is not an opacity. Attribute = per vertex from JS; uniform = one value per draw, changeable every frame with no recompile (pulse test, `sin × 0.5 + 0.5` → 0..1); varying = vertex → fragment, interpolated (lines get a gradient even with `step()`). Only turn a number into a uniform if it *means* that thing (most `1.0`s weren't the radius). Pass the function to `setAnimationLoop`, don't call it. `0 - vec3` fails (int vs float). Shaders moved to `.glsl` with Vite `?raw`; Prettier has no GLSL → WebGL GLSL Editor via `"[glsl]"`. `ShaderMaterial` adds a hidden prefix (precision + built-ins) → linter false alarms → `RawShaderMaterial`: declare everything, built-ins only get data with the exact name. `{ ...sharedUniforms }` copies references, so one `.value` updates dots and lines. `depthWrite: false` on faint lines stops them cutting slices out of back dots.
 - **Refactor (shared fade):** GLSL has no imports; sharing = gluing strings before compiling (`fadeChunk + '\n' + shader`, the newline guards against a trailing `//` comment eating the next line). Chose concatenation over `vite-plugin-glsl` (one chunk isn't worth a package; revisit for Task 10 noise). GLSL functions: return type first, typed params, must be defined above the call. Params are copies (`in`), so assigning a param inside doesn't reach the caller → return the value and store it (`vOpacity = f(...)`); calling without storing throws the result away. Pass values as params instead of declaring uniforms in the chunk (avoids double declarations). Don't name params with the `u` prefix. Vertex shaders have a default float precision; fragment shaders don't.
+- **Task 6:** JSON can't use TS types; the type annotates the import in `main.ts` (`import type`, erased at build). Literal union for `familyId` didn't fit: JSON values are typed `string`, so it needs a cast that turns the check off → `string` + runtime check. `Map<id, Family>` = C# Dictionary: one `set` per family (not the whole array under one key); `set` overwrites silently → check `has` first and throw; return the map and store it. Typed arrays have a fixed length (`new Float32Array()` = 0, writes ignored) → `playlists.length * 3`; hex string → `THREE.Color` → `.r .g .b`. Varying needs the same name/type in both shaders (`a` = attribute, `v` = varying). Don't rename built-ins (`position` → `aPosition` breaks draw count, culling, raycasting). Colors were darker: `THREE.Color` decodes sRGB → linear, `RawShaderMaterial` skips the output encode → exact sRGB formula (`step` + `mix`, no `if`) in a shared fragment chunk, which needs its own `precision` line. Size = two stages: normalize in track space (sqrt on value, min and max) → `t` 0..1, then a plain linear map into dot size; mixing variables from the two spaces caused every bug. Sqrt because the eye reads area (area ∝ width²); log squashes too hard, linear lets one outlier shrink everyone. Cap = `Math.min(value, cap)` on every count before sqrt, max included (putting the cap inside `Math.max` made it a floor). Guard the zero range (all equal after capping → NaN) with the middle size. With cap 200 the curves look alike; differences show only without the cap. Item size 1 on `aColor` → dot `i` reads float `i`, g/b filled with 0 → black-to-red dots. Sorting by family → horizontal bands, because index alone sets `y` in the Fibonacci formula: position knows nothing about the data yet (Task 9).

@@ -8,16 +8,22 @@ import dotFragmentShader from './shaders/dot.frag.glsl?raw';
 import lineVertexShader from './shaders/line.vert.glsl?raw';
 import lineFragmentShader from './shaders/line.frag.glsl?raw';
 import fadeShaderChunk from './shaders/fade.glsl?raw';
+import colorShaderChunk from './shaders/color.glsl?raw';
+import data from './data/playlists.json';
+import type { Family, Playlist, PlaylistData } from './data/types';
 
 // variables
+const playlistData: PlaylistData = data;
 const backgroundColor = new THREE.Color(0xd9ead3);
 const edgeColor = 0x999999;
 const edgeOpacity = 0.3;
-const dotCount = 200;
+const dotCount = playlistData.playlists.length;
 const sphereRadius = 1.0;
 const minSize = 0.5;
 const maxSize = 2.0;
 const backOpacity = 0.05;
+const trackCountCap = 150;
+const familyLookup = buildFamilyLookup(playlistData);
 const sharedUniforms = {
   uBackOpacity: { value: backOpacity },
   uRadius: { value: sphereRadius },
@@ -46,13 +52,17 @@ const dotPositions = fibonacciSphere(dotCount, sphereRadius);
 const dotGeometry = new THREE.BufferGeometry();
 dotGeometry.setAttribute('position', new THREE.BufferAttribute(dotPositions, 3));
 dotGeometry.setAttribute(
+  'aColor',
+  new THREE.BufferAttribute(playlistColors(playlistData, familyLookup), 3),
+);
+dotGeometry.setAttribute(
   'aSize',
-  new THREE.BufferAttribute(randomDotSizes(dotCount, minSize, maxSize), 1),
+  new THREE.BufferAttribute(playlistSizes(playlistData, minSize, maxSize, trackCountCap), 1),
 );
 
 const dotMaterial = new THREE.RawShaderMaterial({
   vertexShader: fadeShaderChunk + '\n' + dotVertexShader,
-  fragmentShader: dotFragmentShader,
+  fragmentShader: colorShaderChunk + '\n' + dotFragmentShader,
   transparent: true,
   depthWrite: false,
   uniforms: { ...sharedUniforms },
@@ -73,7 +83,7 @@ const edgeGeometry = new THREE.BufferGeometry();
 edgeGeometry.setAttribute('position', new THREE.BufferAttribute(edgePositions, 3));
 const edgeMaterial = new THREE.RawShaderMaterial({
   vertexShader: fadeShaderChunk + '\n' + lineVertexShader,
-  fragmentShader: lineFragmentShader,
+  fragmentShader: colorShaderChunk + '\n' + lineFragmentShader,
   transparent: true,
   uniforms: {
     ...sharedUniforms,
@@ -116,16 +126,6 @@ function fibonacciSphere(count: number, radius: number): Float32Array {
   }
 
   return positions;
-}
-
-function randomDotSizes(count: number, min: number, max: number): Float32Array {
-  const sizes = new Float32Array(count);
-
-  for (let i = 0; i < count; i++) {
-    sizes[i] = Math.random() * (max - min) + min;
-  }
-
-  return sizes;
 }
 
 function toVector3Array(positions: Float32Array): THREE.Vector3[] {
@@ -179,4 +179,57 @@ function addEdgeIfNew(
       position.getZ(cornerB),
     );
   }
+}
+
+function buildFamilyLookup(data: PlaylistData): Map<string, Family> {
+  const map = new Map<string, Family>();
+
+  data.families.forEach((family: Family) => {
+    if (map.has(family.id)) {
+      throw new Error(`Duplicate family id "${family.id}"`);
+    }
+    map.set(family.id, family);
+  });
+
+  data.playlists.forEach((playlist: Playlist) => {
+    if (!map.has(playlist.familyId)) {
+      throw new Error(`Playlist "${playlist.id}" has unknown familyId "${playlist.familyId}"`);
+    }
+  });
+
+  return map;
+}
+
+function playlistColors(data: PlaylistData, lookup: Map<string, Family>): Float32Array {
+  const colors = new Float32Array(data.playlists.length * 3);
+
+  data.playlists.forEach((playlist, i) => {
+    const family = lookup.get(playlist.familyId)!;
+    const color = new THREE.Color(family.color);
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  });
+
+  return colors;
+}
+
+function playlistSizes(data: PlaylistData, min: number, max: number, cap: number): Float32Array {
+  const sizes = new Float32Array(data.playlists.length);
+
+  const maxTrackCount = Math.max(...data.playlists.map((p) => p.trackCount));
+  const minTrackCount = Math.min(...data.playlists.map((p) => p.trackCount));
+  const sqrtMaxTracks = Math.sqrt(Math.min(maxTrackCount, cap));
+  const sqrtMinTracks = Math.sqrt(Math.min(minTrackCount, cap));
+  const sqrtRange = sqrtMaxTracks - sqrtMinTracks;
+
+  data.playlists.forEach((playlist, i) => {
+    const cappedTrackCount = Math.min(playlist.trackCount, cap);
+    // all playlists equal after capping → no range to spread over, use the middle size
+    const t = sqrtRange > 0 ? (Math.sqrt(cappedTrackCount) - sqrtMinTracks) / sqrtRange : 0.5;
+    const size = min + t * (max - min);
+    sizes[i] = size;
+  });
+
+  return sizes;
 }

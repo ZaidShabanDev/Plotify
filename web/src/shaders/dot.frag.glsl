@@ -1,6 +1,9 @@
 precision highp float;
 
 varying float vOpacity;
+varying vec3 vColor;
+
+vec3 linearToSRGB(vec3 color);
 
 void main() {
     float dist = distance(gl_PointCoord, vec2(0.5));
@@ -9,5 +12,5 @@ void main() {
         discard;
     }
 
-    gl_FragColor = vec4(0.13, 0.13, 0.13, alpha * vOpacity);
+    gl_FragColor = vec4(linearToSRGB(vColor), alpha * vOpacity);
 }
