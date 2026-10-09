@@ -17,6 +17,8 @@ const playlistData: PlaylistData = data;
 const backgroundColor = new THREE.Color(0xf3f0ff);
 const edgeColor = 0x999999;
 const edgeOpacity = 0.3;
+const chordColor = 0xcc0000;
+const chordOpacity = 1.0;
 const dotCount = playlistData.playlists.length;
 const sphereRadius = 1.0;
 const minSize = 0.5;
@@ -97,6 +99,24 @@ const edgeMaterial = new THREE.RawShaderMaterial({
 });
 const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
 scene.add(edges);
+
+// chords
+const chordPositions = buildChordPositions(validEdges, dotPositions);
+const chordGeometry = new THREE.BufferGeometry();
+chordGeometry.setAttribute('position', new THREE.BufferAttribute(chordPositions, 3));
+const chordMaterial = new THREE.RawShaderMaterial({
+  vertexShader: fadeShaderChunk + '\n' + lineVertexShader,
+  fragmentShader: colorShaderChunk + '\n' + lineFragmentShader,
+  transparent: true,
+  uniforms: {
+    ...sharedUniforms,
+    uColor: { value: new THREE.Color(chordColor) },
+    uLineOpacity: { value: chordOpacity },
+  },
+  depthWrite: false,
+});
+const chords = new THREE.LineSegments(chordGeometry, chordMaterial);
+scene.add(chords);
 
 // resize
 window.addEventListener('resize', () => {
@@ -291,7 +311,22 @@ function assertUniqueEdge(
   const key = `${Math.min(source, target)}-${Math.max(source, target)}`;
 
   if (seenEdges.has(key)) {
-    throw new Error(`Duplicate edge ${edge.source} -> ${edge.target} (same pair as an earlier edge)`);
+    throw new Error(
+      `Duplicate edge ${edge.source} -> ${edge.target} (same pair as an earlier edge)`,
+    );
   }
   seenEdges.add(key);
+}
+
+function buildChordPositions(validEdges: ResolvedEdge[], dotPositions: Float32Array): Float32Array {
+  const chordPositions: number[] = [];
+
+  validEdges.forEach((edge) => {
+    const s = edge.sourceIndex;
+    const t = edge.targetIndex;
+    chordPositions.push(dotPositions[s * 3], dotPositions[s * 3 + 1], dotPositions[s * 3 + 2]);
+    chordPositions.push(dotPositions[t * 3], dotPositions[t * 3 + 1], dotPositions[t * 3 + 2]);
+  });
+
+  return new Float32Array(chordPositions);
 }

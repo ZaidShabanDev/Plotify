@@ -4,7 +4,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 
 **Status:** ⬜ Not started · 🟡 In progress · ✅ Done
 
-**In progress:** Task 7 (relationship arcs). Branch `feature/<issue>-relationship-arcs`.
+**In progress:** Task 7 (relationship arcs). Branch `feature/13-relationship-arcs`.
 
 ---
 
@@ -60,11 +60,11 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 
 ## Task 7: Relationship Arcs (in progress)
 
-Branch: `feature/<issue>-relationship-arcs`
+Branch: `feature/13-relationship-arcs` · Issue #13
 
 **Steps:**
 1. Playlist id → dot index map; validate every edge's `source`/`target`. ✅ `buildPlaylistIndex` + `validatePlaylistEdges` → `ResolvedEdge[]` (indices, not ids); throws on unknown id, self-loop, weight outside 0..1 (NaN too), duplicate pair (`min-max` index key).
-2. Straight chord per edge (`LineSegments`, own shader) to prove the wiring.
+2. Straight chord per edge (`LineSegments`, own shader) to prove the wiring. ✅ `buildChordPositions` reads both dots by index (`n * 3`), second `LineSegments` reusing the line shaders (red, opacity 1).
 3. Great-circle arcs: slerp between the two dot positions, N segments, slightly lifted off the surface.
 4. Opacity (and width later) by `weight` via a per-vertex attribute; reuse the depth fade.
 5. Compare with `Line2` + `LineMaterial` (real pixel width) and pick one.
