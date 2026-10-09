@@ -22,3 +22,9 @@ export interface PlaylistData {
   playlists: Playlist[];
   edges: Edge[];
 }
+
+export interface ResolvedEdge {
+  sourceIndex: number;
+  targetIndex: number;
+  weight: number;
+}

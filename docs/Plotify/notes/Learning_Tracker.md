@@ -4,7 +4,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 
 **Status:** ⬜ Not started · 🟡 In progress · ✅ Done
 
-**Next up:** Task 7 (relationship arcs).
+**In progress:** Task 7 (relationship arcs). Branch `feature/<issue>-relationship-arcs`.
 
 ---
 
@@ -18,7 +18,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | ✅ |
 | 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | ✅ |
 | 6 | Mock data | Playlist JSON (genre, track count, edges) → size and color attributes | ✅ |
-| 7 | Relationship arcs | Slerp, great-circle arcs, `Line2`/`LineMaterial`, opacity by score | ⬜ |
+| 7 | Relationship arcs | Slerp, great-circle arcs, `Line2`/`LineMaterial`, opacity by score | 🟡 |
 | 8 | Hover and picking | `Raycaster` on points, hover attribute, 3D → 2D projection for an HTML tooltip | ⬜ |
 | 9 | Force layout on the sphere | Springs + repulsion, projecting back onto the sphere, clustering | ⬜ |
 | 10 | Atmosphere | Idle motion (noise in shader), soft ground shadow, subtle rim glow | ⬜ |
@@ -55,6 +55,28 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | # | Task | Learn | Status |
 |---|---|---|---|
 | 23 | Save to Spotify | Create playlists from groups | ⬜ |
+
+---
+
+## Task 7: Relationship Arcs (in progress)
+
+Branch: `feature/<issue>-relationship-arcs`
+
+**Steps:**
+1. Playlist id → dot index map; validate every edge's `source`/`target`. ✅ `buildPlaylistIndex` + `validatePlaylistEdges` → `ResolvedEdge[]` (indices, not ids); throws on unknown id, self-loop, weight outside 0..1 (NaN too), duplicate pair (`min-max` index key).
+2. Straight chord per edge (`LineSegments`, own shader) to prove the wiring.
+3. Great-circle arcs: slerp between the two dot positions, N segments, slightly lifted off the surface.
+4. Opacity (and width later) by `weight` via a per-vertex attribute; reuse the depth fade.
+5. Compare with `Line2` + `LineMaterial` (real pixel width) and pick one.
+
+**Things to try:**
+- lerp + normalize instead of slerp: compare the spacing of the points along a long arc.
+- 2 vs 8 vs 64 segments per arc.
+- No lift (radius exactly 1.0): look where arcs meet the mesh lines.
+- Set `linewidth: 5` on a plain line material.
+- An edge between two almost opposite dots.
+
+**Done when:** every edge is a smooth arc on the sphere surface (not through it), stronger edges are clearly more visible, back-side arcs fade like the mesh, and a bad id in `edges` throws a clear error.
 
 ---
 
