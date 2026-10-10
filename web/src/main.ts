@@ -27,7 +27,7 @@ const maxSize = 2.0;
 const backOpacity = 0.05;
 const trackCountCap = 150;
 const arcSegments = 32;
-const arcLift = 1.01;
+const arcLiftHeight = 0.01;
 const minRelationOpacity = 0.2;
 const sharedUniforms = {
   uBackOpacity: { value: backOpacity },
@@ -107,7 +107,7 @@ scene.add(edges);
 
 // relations
 const arcWeights = buildArcWeights(validEdges, arcSegments);
-const arcPositions = buildArcPositions(validEdges, dotPositions, arcSegments, arcLift);
+const arcPositions = buildArcPositions(validEdges, dotPositions, arcSegments, arcLiftHeight);
 const relationGeometry = new THREE.BufferGeometry();
 relationGeometry.setAttribute('position', new THREE.BufferAttribute(arcPositions, 3));
 relationGeometry.setAttribute('aWeight', new THREE.BufferAttribute(arcWeights, 1));
@@ -345,8 +345,12 @@ function buildArcPositions(
       const tEnd = (k + 1) / segments;
       const p0 = slerpOnSphere(a, b, tStart);
       const p1 = slerpOnSphere(a, b, tEnd);
-      p0.multiplyScalar(lift);
-      p1.multiplyScalar(lift);
+      const liftHeight = lift;
+      const scaleStart = 1 + liftHeight * Math.sin(Math.PI * tStart);
+      const scaleEnd = 1 + liftHeight * Math.sin(Math.PI * tEnd);
+
+      p0.multiplyScalar(scaleStart);
+      p1.multiplyScalar(scaleEnd);
       arcPositions.push(p0.x, p0.y, p0.z, p1.x, p1.y, p1.z);
     }
   });
