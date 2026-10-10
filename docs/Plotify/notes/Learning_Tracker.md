@@ -4,7 +4,7 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 
 **Status:** ⬜ Not started · 🟡 In progress · ✅ Done
 
-**Next up:** Task 7 (relationship arcs).
+**In progress:** none. Next: Task 8 (hover and picking).
 
 ---
 
@@ -18,8 +18,8 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | 4 | Structural mesh | Convex hull on a sphere, unique edge extraction, `LineSegments` | ✅ |
 | 5 | Depth fade | View space, uniforms, fading back-side dots and lines in the shader | ✅ |
 | 6 | Mock data | Playlist JSON (genre, track count, edges) → size and color attributes | ✅ |
-| 7 | Relationship arcs | Slerp, great-circle arcs, `Line2`/`LineMaterial`, opacity by score | ⬜ |
-| 8 | Hover and picking | `Raycaster` on points, hover attribute, 3D → 2D projection for an HTML tooltip | ⬜ |
+| 7 | Relationship arcs | Slerp, great-circle arcs, `Line2`/`LineMaterial`, opacity by score | ✅ |
+| 8 | Hover and picking | `Raycaster` on points, hover attribute, 3D → 2D projection for an HTML tooltip. Own fat-line shader (instanced screen-space quads) for thicker hovered arcs, keeping fade + weight | ⬜ |
 | 9 | Force layout on the sphere | Springs + repulsion, projecting back onto the sphere, clustering | ⬜ |
 | 10 | Atmosphere | Idle motion (noise in shader), soft ground shadow, subtle rim glow | ⬜ |
 | 11 | Camera fly-to | Easing, interpolating camera position and target, fading other dots | ⬜ |
@@ -55,6 +55,30 @@ How it works: each task has a goal and the concepts it teaches. The full lesson 
 | # | Task | Learn | Status |
 |---|---|---|---|
 | 23 | Save to Spotify | Create playlists from groups | ⬜ |
+
+---
+
+## Task 7: Relationship Arcs (done)
+
+Branch: `feature/13-relationship-arcs` · Issue #13
+
+**Steps:**
+1. Playlist id → dot index map; validate every edge's `source`/`target`. ✅ `buildPlaylistIndex` + `validatePlaylistEdges` → `ResolvedEdge[]` (indices, not ids); throws on unknown id, self-loop, weight outside 0..1 (NaN too), duplicate pair (`min-max` index key).
+2. Straight chord per edge (`LineSegments`, own shader) to prove the wiring. ✅ `buildChordPositions` reads both dots by index (`n * 3`), second `LineSegments` reusing the line shaders (red, opacity 1).
+3. Great-circle arcs: slerp between the two dot positions, N segments, slightly lifted off the surface. ✅ `slerpOnSphere` (`angleTo` + `crossVectors` axis + `applyAxisAngle` on a clone), `buildArcPositions` (32 segments, `k / segments` → t, constant lift 1.01). Guard for opposite points (zero cross product → any axis ⟂ a). Chord block renamed to `relation…`. Constant lift moved arc ends off rim dots when zoomed → lift by `1 + h · sin(πt)` (ends exactly on the dot, middle lifted, `arcLiftHeight = 0.01`).
+4. Opacity (and width later) by `weight` via a per-vertex attribute; reuse the depth fade. ✅ `buildArcWeights` (weight pushed twice per segment, same order as positions) → `aWeight` (item size 1); own `relation.vert.glsl` (mesh keeps `line.vert.glsl`, frag shared); `mix(uMinRelationOpacity, 1.0, aWeight)` × fade.
+5. Compare with `Line2` + `LineMaterial` (real pixel width) and pick one. ✅ `linewidth` ignored on Windows (ANGLE, 1px cap); `LineSegments2` prototype gave real width but its built-in shader drops fade + weight. Kept `LineSegments` (option A); own fat-line shader (option D) moved to Task 8.
+
+**Later:** adaptive segment count per arc (`max(min, ceil(angle / maxSegmentAngle))`) instead of fixed 32. Needs per-edge vertex offsets (weights, Task 8 hover). Revisit if long arcs look jagged or edges grow (Task 18).
+
+**Things to try:**
+- lerp + normalize instead of slerp: compare the spacing of the points along a long arc.
+- 2 vs 8 vs 64 segments per arc.
+- No lift (radius exactly 1.0): look where arcs meet the mesh lines.
+- Set `linewidth: 5` on a plain line material.
+- An edge between two almost opposite dots.
+
+**Done when:** every edge is a smooth arc on the sphere surface (not through it), stronger edges are clearly more visible, back-side arcs fade like the mesh, and a bad id in `edges` throws a clear error.
 
 ---
 
@@ -190,3 +214,4 @@ Add a line per task: what you learned, what broke, what surprised you.
 - **Task 5:** Object space (`position`, never changes) vs view space (camera at 0, looking down −z): "back side" must be measured in view space. Tried depth vs sphere center (`(dot z − center z) / radius` → −1..1), then switched to facing: `dot(viewNormal, toCamera)` (+1 faces camera, 0 at the visible rim, −1 faces away). Normal = perpendicular to the surface; on a sphere it's `normalize(position)`, moved to view space once with `normalMatrix` (never twice). `w = 1.0` = point, `w = 0.0` = direction; `length(vec4)` silently includes w → `.xyz`. Inside the sphere every dot faces away → blend the fade off by camera distance (`length(viewCenter.xyz)` vs radius). `smoothstep(e0, e1, x)` = how far through the range (edge0 > edge1 is undefined); `mix(a, b, t)` = a at 0, b at 1; a 0..1 visibility is not an opacity. Attribute = per vertex from JS; uniform = one value per draw, changeable every frame with no recompile (pulse test, `sin × 0.5 + 0.5` → 0..1); varying = vertex → fragment, interpolated (lines get a gradient even with `step()`). Only turn a number into a uniform if it *means* that thing (most `1.0`s weren't the radius). Pass the function to `setAnimationLoop`, don't call it. `0 - vec3` fails (int vs float). Shaders moved to `.glsl` with Vite `?raw`; Prettier has no GLSL → WebGL GLSL Editor via `"[glsl]"`. `ShaderMaterial` adds a hidden prefix (precision + built-ins) → linter false alarms → `RawShaderMaterial`: declare everything, built-ins only get data with the exact name. `{ ...sharedUniforms }` copies references, so one `.value` updates dots and lines. `depthWrite: false` on faint lines stops them cutting slices out of back dots.
 - **Refactor (shared fade):** GLSL has no imports; sharing = gluing strings before compiling (`fadeChunk + '\n' + shader`, the newline guards against a trailing `//` comment eating the next line). Chose concatenation over `vite-plugin-glsl` (one chunk isn't worth a package; revisit for Task 10 noise). GLSL functions: return type first, typed params, must be defined above the call. Params are copies (`in`), so assigning a param inside doesn't reach the caller → return the value and store it (`vOpacity = f(...)`); calling without storing throws the result away. Pass values as params instead of declaring uniforms in the chunk (avoids double declarations). Don't name params with the `u` prefix. Vertex shaders have a default float precision; fragment shaders don't.
 - **Task 6:** JSON can't use TS types; the type annotates the import in `main.ts` (`import type`, erased at build). Literal union for `familyId` didn't fit: JSON values are typed `string`, so it needs a cast that turns the check off → `string` + runtime check. `Map<id, Family>` = C# Dictionary: one `set` per family (not the whole array under one key); `set` overwrites silently → check `has` first and throw; return the map and store it. Typed arrays have a fixed length (`new Float32Array()` = 0, writes ignored) → `playlists.length * 3`; hex string → `THREE.Color` → `.r .g .b`. Varying needs the same name/type in both shaders (`a` = attribute, `v` = varying). Don't rename built-ins (`position` → `aPosition` breaks draw count, culling, raycasting). Colors were darker: `THREE.Color` decodes sRGB → linear, `RawShaderMaterial` skips the output encode → exact sRGB formula (`step` + `mix`, no `if`) in a shared fragment chunk, which needs its own `precision` line. Size = two stages: normalize in track space (sqrt on value, min and max) → `t` 0..1, then a plain linear map into dot size; mixing variables from the two spaces caused every bug. Sqrt because the eye reads area (area ∝ width²); log squashes too hard, linear lets one outlier shrink everyone. Cap = `Math.min(value, cap)` on every count before sqrt, max included (putting the cap inside `Math.max` made it a floor). Guard the zero range (all equal after capping → NaN) with the middle size. With cap 200 the curves look alike; differences show only without the cap. Item size 1 on `aColor` → dot `i` reads float `i`, g/b filled with 0 → black-to-red dots. Sorting by family → horizontal bands, because index alone sets `y` in the Fibonacci formula: position knows nothing about the data yet (Task 9).
+- **Task 7:** Data speaks in ids, the GPU in indices → `Map<id, index>` once, then validated `ResolvedEdge[]` (indices + weight) that every drawing step reads. `!(w >= 0 && w <= 1)` also rejects NaN. Duplicate pair = `min-max` index key in a `Set`, but throw (bad data) instead of skip (Task 4 hull). Chord first to prove the wiring, then slerp: angle (`angleTo`), axis (`a × b`, normalized), rotate a clone by `angle · t`; `t` must be 0..1 (passing segment number `k` spun points around the sphere, and the length check still passed: count ≠ content). Opposite points → zero cross product → no axis, arc silently vanishes → fallback axis. Great circles seen edge-on look straight. Arc = N straight segments (smoothness vs vertex count). Constant lift moved ends off rim dots → `1 + h · sin(πt)`. No z-fighting seen because nothing writes depth. Per-edge weight copied onto every vertex; a uniform can't vary inside one draw call. Missing attribute reads 0 → everything at the floor; item size 3 ran out of data. `mix(min, 1, w)`: the floor only affects weak edges. Different weights at a segment's two ends → dashes (varying interpolation). `linewidth` is ignored (1px on Windows); built-in materials replace your shader completely.

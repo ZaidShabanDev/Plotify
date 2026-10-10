@@ -9,25 +9,35 @@ import lineVertexShader from './shaders/line.vert.glsl?raw';
 import lineFragmentShader from './shaders/line.frag.glsl?raw';
 import fadeShaderChunk from './shaders/fade.glsl?raw';
 import colorShaderChunk from './shaders/color.glsl?raw';
+import relationVertexShader from './shaders/relation.vert.glsl?raw';
 import data from './data/playlists.json';
-import type { Family, Playlist, PlaylistData } from './data/types';
+import type { Edge, Family, Playlist, PlaylistData, ResolvedEdge } from './data/types';
 
 // variables
 const playlistData: PlaylistData = data;
-const backgroundColor = new THREE.Color(0xd9ead3);
+const backgroundColor = new THREE.Color(0xf3f0ff);
 const edgeColor = 0x999999;
 const edgeOpacity = 0.3;
+const relationColor = 0xcc0000;
+const relationOpacity = 1.0;
 const dotCount = playlistData.playlists.length;
 const sphereRadius = 1.0;
 const minSize = 0.5;
 const maxSize = 2.0;
 const backOpacity = 0.05;
 const trackCountCap = 150;
-const familyLookup = buildFamilyLookup(playlistData);
+const arcSegments = 32;
+const arcLiftHeight = 0.01;
+const minRelationOpacity = 0.2;
 const sharedUniforms = {
   uBackOpacity: { value: backOpacity },
   uRadius: { value: sphereRadius },
 };
+
+// function calling
+const familyLookup = buildFamilyLookup(playlistData);
+const playlistIndex = buildPlaylistIndex(playlistData);
+const validEdges = validatePlaylistEdges(playlistData, playlistIndex);
 
 // scene
 const scene = new THREE.Scene();
@@ -94,6 +104,27 @@ const edgeMaterial = new THREE.RawShaderMaterial({
 });
 const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
 scene.add(edges);
+
+// relations
+const arcWeights = buildArcWeights(validEdges, arcSegments);
+const arcPositions = buildArcPositions(validEdges, dotPositions, arcSegments, arcLiftHeight);
+const relationGeometry = new THREE.BufferGeometry();
+relationGeometry.setAttribute('position', new THREE.BufferAttribute(arcPositions, 3));
+relationGeometry.setAttribute('aWeight', new THREE.BufferAttribute(arcWeights, 1));
+const relationMaterial = new THREE.RawShaderMaterial({
+  vertexShader: fadeShaderChunk + '\n' + relationVertexShader,
+  fragmentShader: colorShaderChunk + '\n' + lineFragmentShader,
+  transparent: true,
+  uniforms: {
+    ...sharedUniforms,
+    uColor: { value: new THREE.Color(relationColor) },
+    uLineOpacity: { value: relationOpacity },
+    uMinRelationOpacity: { value: minRelationOpacity },
+  },
+  depthWrite: false,
+});
+const relations = new THREE.LineSegments(relationGeometry, relationMaterial);
+scene.add(relations);
 
 // resize
 window.addEventListener('resize', () => {
@@ -232,4 +263,122 @@ function playlistSizes(data: PlaylistData, min: number, max: number, cap: number
   });
 
   return sizes;
+}
+
+function buildPlaylistIndex(data: PlaylistData): Map<string, number> {
+  const map = new Map<string, number>();
+
+  data.playlists.forEach((playlist, i) => {
+    if (map.has(playlist.id)) {
+      throw new Error(`Duplicate playlist id "${playlist.id}"`);
+    }
+    map.set(playlist.id, i);
+  });
+
+  return map;
+}
+
+function validatePlaylistEdges(data: PlaylistData, map: Map<string, number>): ResolvedEdge[] {
+  const resolvedEdges: ResolvedEdge[] = [];
+  const seenEdges = new Set<string>();
+
+  data.edges.forEach((edge) => {
+    if (!map.has(edge.source)) {
+      throw new Error(`Unknown source node: ${edge.source}`);
+    }
+
+    if (!map.has(edge.target)) {
+      throw new Error(`Unknown target node: ${edge.target}`);
+    }
+
+    if (edge.source === edge.target) {
+      throw new Error(`Self-loop not allowed on node: ${edge.source} -> ${edge.target}`);
+    }
+
+    if (!(edge.weight >= 0 && edge.weight <= 1)) {
+      throw new Error(
+        `Weight must be between 0 and 1, got: ${edge.weight} related to edge ${edge.source}-> ${edge.target}`,
+      );
+    }
+
+    const sourceIdx = map.get(edge.source)!;
+    const targetIdx = map.get(edge.target)!;
+    assertUniqueEdge(sourceIdx, targetIdx, edge, seenEdges);
+
+    resolvedEdges.push({ sourceIndex: sourceIdx, targetIndex: targetIdx, weight: edge.weight });
+  });
+  return resolvedEdges;
+}
+
+function assertUniqueEdge(
+  source: number,
+  target: number,
+  edge: Edge,
+  seenEdges: Set<string>,
+): void {
+  const key = `${Math.min(source, target)}-${Math.max(source, target)}`;
+
+  if (seenEdges.has(key)) {
+    throw new Error(
+      `Duplicate edge ${edge.source} -> ${edge.target} (same pair as an earlier edge)`,
+    );
+  }
+  seenEdges.add(key);
+}
+
+function buildArcPositions(
+  validEdges: ResolvedEdge[],
+  dotPositions: Float32Array,
+  segments: number,
+  lift: number,
+): Float32Array {
+  const arcPositions: number[] = [];
+
+  validEdges.forEach((edge) => {
+    const sourceIdx = edge.sourceIndex;
+    const targetIdx = edge.targetIndex;
+    const a = new THREE.Vector3().fromArray(dotPositions, sourceIdx * 3);
+    const b = new THREE.Vector3().fromArray(dotPositions, targetIdx * 3);
+
+    for (let k = 0; k < segments; k++) {
+      const tStart = k / segments;
+      const tEnd = (k + 1) / segments;
+      const p0 = slerpOnSphere(a, b, tStart);
+      const p1 = slerpOnSphere(a, b, tEnd);
+      const liftHeight = lift;
+      const scaleStart = 1 + liftHeight * Math.sin(Math.PI * tStart);
+      const scaleEnd = 1 + liftHeight * Math.sin(Math.PI * tEnd);
+
+      p0.multiplyScalar(scaleStart);
+      p1.multiplyScalar(scaleEnd);
+      arcPositions.push(p0.x, p0.y, p0.z, p1.x, p1.y, p1.z);
+    }
+  });
+  return new Float32Array(arcPositions);
+}
+
+function slerpOnSphere(a: THREE.Vector3, b: THREE.Vector3, t: number): THREE.Vector3 {
+  const angle = a.angleTo(b);
+  const axis = new THREE.Vector3().crossVectors(a, b);
+
+  // opposite points: a × b is zero and every great circle is a shortest path, so any axis ⟂ a works
+  if (axis.lengthSq() < 1e-12) {
+    const pointsUp = Math.abs(a.y) > 0.9 * a.length();
+    axis.crossVectors(a, pointsUp ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0));
+  }
+
+  axis.normalize();
+  const result = a.clone().applyAxisAngle(axis, angle * t);
+  return result;
+}
+
+function buildArcWeights(validEdges: ResolvedEdge[], segments: number): Float32Array {
+  const arcWeights: number[] = [];
+
+  validEdges.forEach((edge) => {
+    for (let k = 0; k < segments; k++) {
+      arcWeights.push(edge.weight, edge.weight);
+    }
+  });
+  return new Float32Array(arcWeights);
 }
