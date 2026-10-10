@@ -17,20 +17,23 @@ const playlistData: PlaylistData = data;
 const backgroundColor = new THREE.Color(0xf3f0ff);
 const edgeColor = 0x999999;
 const edgeOpacity = 0.3;
-const chordColor = 0xcc0000;
-const chordOpacity = 1.0;
+const relationColor = 0xcc0000;
+const relationOpacity = 1.0;
 const dotCount = playlistData.playlists.length;
 const sphereRadius = 1.0;
 const minSize = 0.5;
 const maxSize = 2.0;
 const backOpacity = 0.05;
 const trackCountCap = 150;
-const familyLookup = buildFamilyLookup(playlistData);
+const arcSegments = 32;
+const arcLift = 1.01;
 const sharedUniforms = {
   uBackOpacity: { value: backOpacity },
   uRadius: { value: sphereRadius },
 };
 
+// function calling
+const familyLookup = buildFamilyLookup(playlistData);
 const playlistIndex = buildPlaylistIndex(playlistData);
 const validEdges = validatePlaylistEdges(playlistData, playlistIndex);
 
@@ -100,23 +103,23 @@ const edgeMaterial = new THREE.RawShaderMaterial({
 const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
 scene.add(edges);
 
-// chords
-const chordPositions = buildChordPositions(validEdges, dotPositions);
-const chordGeometry = new THREE.BufferGeometry();
-chordGeometry.setAttribute('position', new THREE.BufferAttribute(chordPositions, 3));
-const chordMaterial = new THREE.RawShaderMaterial({
+// relations
+const arcPositions = buildArcPositions(validEdges, dotPositions, arcSegments, arcLift);
+const relationGeometry = new THREE.BufferGeometry();
+relationGeometry.setAttribute('position', new THREE.BufferAttribute(arcPositions, 3));
+const relationMaterial = new THREE.RawShaderMaterial({
   vertexShader: fadeShaderChunk + '\n' + lineVertexShader,
   fragmentShader: colorShaderChunk + '\n' + lineFragmentShader,
   transparent: true,
   uniforms: {
     ...sharedUniforms,
-    uColor: { value: new THREE.Color(chordColor) },
-    uLineOpacity: { value: chordOpacity },
+    uColor: { value: new THREE.Color(relationColor) },
+    uLineOpacity: { value: relationOpacity },
   },
   depthWrite: false,
 });
-const chords = new THREE.LineSegments(chordGeometry, chordMaterial);
-scene.add(chords);
+const relations = new THREE.LineSegments(relationGeometry, relationMaterial);
+scene.add(relations);
 
 // resize
 window.addEventListener('resize', () => {
@@ -318,15 +321,44 @@ function assertUniqueEdge(
   seenEdges.add(key);
 }
 
-function buildChordPositions(validEdges: ResolvedEdge[], dotPositions: Float32Array): Float32Array {
-  const chordPositions: number[] = [];
+function buildArcPositions(
+  validEdges: ResolvedEdge[],
+  dotPositions: Float32Array,
+  segments: number,
+  lift: number,
+): Float32Array {
+  const arcPositions: number[] = [];
 
   validEdges.forEach((edge) => {
-    const s = edge.sourceIndex;
-    const t = edge.targetIndex;
-    chordPositions.push(dotPositions[s * 3], dotPositions[s * 3 + 1], dotPositions[s * 3 + 2]);
-    chordPositions.push(dotPositions[t * 3], dotPositions[t * 3 + 1], dotPositions[t * 3 + 2]);
-  });
+    const sourceIdx = edge.sourceIndex;
+    const targetIdx = edge.targetIndex;
+    const a = new THREE.Vector3().fromArray(dotPositions, sourceIdx * 3);
+    const b = new THREE.Vector3().fromArray(dotPositions, targetIdx * 3);
 
-  return new Float32Array(chordPositions);
+    for (let k = 0; k < segments; k++) {
+      const tStart = k / segments;
+      const tEnd = (k + 1) / segments;
+      const p0 = slerpOnSphere(a, b, tStart);
+      const p1 = slerpOnSphere(a, b, tEnd);
+      p0.multiplyScalar(lift);
+      p1.multiplyScalar(lift);
+      arcPositions.push(p0.x, p0.y, p0.z, p1.x, p1.y, p1.z);
+    }
+  });
+  return new Float32Array(arcPositions);
+}
+
+function slerpOnSphere(a: THREE.Vector3, b: THREE.Vector3, t: number): THREE.Vector3 {
+  const angle = a.angleTo(b);
+  const axis = new THREE.Vector3().crossVectors(a, b);
+
+  // opposite points: a × b is zero and every great circle is a shortest path, so any axis ⟂ a works
+  if (axis.lengthSq() < 1e-12) {
+    const pointsUp = Math.abs(a.y) > 0.9 * a.length();
+    axis.crossVectors(a, pointsUp ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0));
+  }
+
+  axis.normalize();
+  const result = a.clone().applyAxisAngle(axis, angle * t);
+  return result;
 }
