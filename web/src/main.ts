@@ -9,6 +9,7 @@ import lineVertexShader from './shaders/line.vert.glsl?raw';
 import lineFragmentShader from './shaders/line.frag.glsl?raw';
 import fadeShaderChunk from './shaders/fade.glsl?raw';
 import colorShaderChunk from './shaders/color.glsl?raw';
+import relationVertexShader from './shaders/relation.vert.glsl?raw';
 import data from './data/playlists.json';
 import type { Edge, Family, Playlist, PlaylistData, ResolvedEdge } from './data/types';
 
@@ -27,6 +28,7 @@ const backOpacity = 0.05;
 const trackCountCap = 150;
 const arcSegments = 32;
 const arcLift = 1.01;
+const minRelationOpacity = 0.2;
 const sharedUniforms = {
   uBackOpacity: { value: backOpacity },
   uRadius: { value: sphereRadius },
@@ -104,17 +106,20 @@ const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
 scene.add(edges);
 
 // relations
+const arcWeights = buildArcWeights(validEdges, arcSegments);
 const arcPositions = buildArcPositions(validEdges, dotPositions, arcSegments, arcLift);
 const relationGeometry = new THREE.BufferGeometry();
 relationGeometry.setAttribute('position', new THREE.BufferAttribute(arcPositions, 3));
+relationGeometry.setAttribute('aWeight', new THREE.BufferAttribute(arcWeights, 1));
 const relationMaterial = new THREE.RawShaderMaterial({
-  vertexShader: fadeShaderChunk + '\n' + lineVertexShader,
+  vertexShader: fadeShaderChunk + '\n' + relationVertexShader,
   fragmentShader: colorShaderChunk + '\n' + lineFragmentShader,
   transparent: true,
   uniforms: {
     ...sharedUniforms,
     uColor: { value: new THREE.Color(relationColor) },
     uLineOpacity: { value: relationOpacity },
+    uMinRelationOpacity: { value: minRelationOpacity },
   },
   depthWrite: false,
 });
@@ -361,4 +366,15 @@ function slerpOnSphere(a: THREE.Vector3, b: THREE.Vector3, t: number): THREE.Vec
   axis.normalize();
   const result = a.clone().applyAxisAngle(axis, angle * t);
   return result;
+}
+
+function buildArcWeights(validEdges: ResolvedEdge[], segments: number): Float32Array {
+  const arcWeights: number[] = [];
+
+  validEdges.forEach((edge) => {
+    for (let k = 0; k < segments; k++) {
+      arcWeights.push(edge.weight, edge.weight);
+    }
+  });
+  return new Float32Array(arcWeights);
 }

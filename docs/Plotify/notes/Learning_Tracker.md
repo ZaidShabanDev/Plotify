@@ -66,8 +66,10 @@ Branch: `feature/13-relationship-arcs` · Issue #13
 1. Playlist id → dot index map; validate every edge's `source`/`target`. ✅ `buildPlaylistIndex` + `validatePlaylistEdges` → `ResolvedEdge[]` (indices, not ids); throws on unknown id, self-loop, weight outside 0..1 (NaN too), duplicate pair (`min-max` index key).
 2. Straight chord per edge (`LineSegments`, own shader) to prove the wiring. ✅ `buildChordPositions` reads both dots by index (`n * 3`), second `LineSegments` reusing the line shaders (red, opacity 1).
 3. Great-circle arcs: slerp between the two dot positions, N segments, slightly lifted off the surface. ✅ `slerpOnSphere` (`angleTo` + `crossVectors` axis + `applyAxisAngle` on a clone), `buildArcPositions` (32 segments, `k / segments` → t, constant lift 1.01). Guard for opposite points (zero cross product → any axis ⟂ a). Chord block renamed to `relation…`.
-4. Opacity (and width later) by `weight` via a per-vertex attribute; reuse the depth fade.
+4. Opacity (and width later) by `weight` via a per-vertex attribute; reuse the depth fade. ✅ `buildArcWeights` (weight pushed twice per segment, same order as positions) → `aWeight` (item size 1); own `relation.vert.glsl` (mesh keeps `line.vert.glsl`, frag shared); `mix(uMinRelationOpacity, 1.0, aWeight)` × fade.
 5. Compare with `Line2` + `LineMaterial` (real pixel width) and pick one.
+
+**Later:** adaptive segment count per arc (`max(min, ceil(angle / maxSegmentAngle))`) instead of fixed 32. Needs per-edge vertex offsets (weights, Task 8 hover). Revisit if long arcs look jagged or edges grow (Task 18).
 
 **Things to try:**
 - lerp + normalize instead of slerp: compare the spacing of the points along a long arc.
